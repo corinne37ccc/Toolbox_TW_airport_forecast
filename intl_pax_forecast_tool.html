@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>台灣國際線旅客運量預測工具</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -734,6 +735,8 @@ const charts={};
 Chart.defaults.elements.point.hoverRadius=5;
 Chart.defaults.elements.point.hoverBorderWidth=2;
 Chart.defaults.elements.point.hitRadius=6;
+/* 年份刻度：手機（寬度<560px）由每5年改為每10年，避免擠在一起；旋轉螢幕時會即時重算 */
+const yrTick=(y,step)=>y%((step===5&&window.innerWidth<560)?10:step)===0?y:'';
 function baseOpt(fmt,yfmt,yrs,step,unit){return{responsive:true,maintainAspectRatio:false,
  interaction:{mode:'index',intersect:false},
  plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,
@@ -743,7 +746,7 @@ function baseOpt(fmt,yfmt,yrs,step,unit){return{responsive:true,maintainAspectRa
   titleFont:{size:14,weight:'600'},bodyFont:{size:14},boxPadding:4}},
  scales:{y:{beginAtZero:true,ticks:{...TICK,callback:yfmt},grid:GRID,border:{display:false},
    title:{display:!!unit,text:unit,font:{size:13,weight:'600'},color:cssv('--ink3')}},
- x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrs[i]%step===0?yrs[i]:''},grid:{display:false},border:{color:cssv('--rule')}}},animation:false}}
+ x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrTick(yrs[i],step)},grid:{display:false},border:{color:cssv('--rule')}}},animation:false}}
 function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),cfg)}
 
 (function(){
@@ -869,7 +872,7 @@ function update(){
  mk('c_main',{type:'line',data:{labels:yrs,datasets:ds},options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬',v=>v.toLocaleString(),yrs,5),
   scales:{y:{beginAtZero:true,ticks:{...TICK,callback:v=>v.toLocaleString()},grid:GRID,border:{display:false},
     title:{display:true,text:'萬人次',font:{size:13,weight:'600'},color:cssv('--ink3')}},
-  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrs[i]%5===0?yrs[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrTick(yrs[i],5)},grid:{display:false},border:{color:cssv('--rule')}}}}});
  document.getElementById('lg-main').innerHTML=`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>實際值</div>`
   +res.map(r=>`<div class="lg"><i style="border-color:var(${CVAR[r.id]})"></i>${r.name}</div>`).join('');
 
@@ -881,15 +884,26 @@ function update(){
 }
 
 /* ---------- 頁籤切換（先只有出國可點）---------- */
+/* ---------- 頁籤切換：每個頁籤有獨立網址（#outbound／#inbound／#transit／#total）---------- */
+const TAB_IDS=['outbound','inbound','transit','total'];
+const BASE_TITLE=document.title;
+function showTab(t){
+ if(!TAB_IDS.includes(t)) t='outbound';
+ document.querySelectorAll('.tab').forEach(x=>{const on=x.dataset.t===t;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false')});
+ document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('on',x.id==='panel-'+t));
+ const b=document.querySelector(`.tab[data-t="${t}"]`);
+ document.title=b.textContent.trim()+'｜'+BASE_TITLE;
+}
 document.querySelectorAll('.tab').forEach(b=>{
  if(b.disabled)return;
  b.onclick=()=>{
-  document.querySelectorAll('.tab').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-selected','false')});
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');b.setAttribute('aria-selected','true');
-  document.getElementById('panel-'+b.dataset.t).classList.add('on');
+  if(location.hash!=='#'+b.dataset.t) history.pushState(null,'','#'+b.dataset.t);
+  showTab(b.dataset.t);
  };
 });
+window.addEventListener('popstate',()=>showTab(location.hash.slice(1)));
+window.addEventListener('hashchange',()=>{showTab(location.hash.slice(1));window.scrollTo(0,0);});
+showTab(location.hash.slice(1));
 
 renderSummaryKPI();
 renderScenSet();
@@ -1139,7 +1153,7 @@ function renderOverviewStats(){
   options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),YRS,5,'萬人次'),
    scales:{y:{stacked:true,beginAtZero:true,ticks:{...TICK,callback:v=>v.toLocaleString()},grid:GRID,border:{display:false},
      title:{display:true,text:'萬人次',font:{size:13,weight:'600'},color:cssv('--ink3')}},
-    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>YRS[i]%5===0?YRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrTick(YRS[i],5)},grid:{display:false},border:{color:cssv('--rule')}}}}});
  document.getElementById('ic_group').closest('.card').insertAdjacentHTML('beforeend',
   `<div class="legend" style="margin-top:10px">${groups.map(g=>`<div class="lg"><i class="sq" style="--sw:${GC[g]}"></i>${GN[g]}</div>`).join('')}</div>`);
 
@@ -1151,7 +1165,7 @@ function renderOverviewStats(){
   options:{...baseOpt(v=>v.toFixed(1)+'%',v=>v.toFixed(0),YRS,5,'%'),
    scales:{y:{stacked:true,beginAtZero:true,max:100,ticks:{...TICK,callback:v=>v+'%'},grid:GRID,border:{display:false},
      title:{display:true,text:'占比（%）',font:{size:13,weight:'600'},color:cssv('--ink3')}},
-    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>YRS[i]%5===0?YRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrTick(YRS[i],5)},grid:{display:false},border:{color:cssv('--rule')}}}}});
  document.getElementById('ic_group_pct').closest('.card').insertAdjacentHTML('beforeend',
   `<div class="legend" style="margin-top:10px">${groups.map(g=>`<div class="lg"><i class="sq" style="--sw:${GC[g]}"></i>${GN[g]}</div>`).join('')}</div>`);
 
@@ -1258,7 +1272,7 @@ function renderOverviewResults(){
   borderColor:cssv(ICVAR[sc]),borderWidth:3,pointRadius:0,tension:.2,order:1}));
  mk('ic_main',{type:'line',data:{labels:ALLYRS,datasets:ds},options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬',v=>v+'萬',ALLYRS,5),
   scales:{y:{beginAtZero:true,ticks:{...TICK,callback:v=>v+'萬'},grid:GRID,border:{display:false}},
-  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>ALLYRS[i]%5===0?ALLYRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrTick(ALLYRS[i],5)},grid:{display:false},border:{color:cssv('--rule')}}}}});
  document.getElementById('ilg-main').innerHTML=`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>實際值</div>`
   +SCN_ORD2.map(sc=>`<div class="lg"><i style="border-color:${cssv(ICVAR[sc])}"></i>${SCN_LABEL[sc]}</div>`).join('');
 
@@ -1496,7 +1510,7 @@ function longLine(id,histFn,comb,key){
  const ds=[{label:'歷史',data:LONG_YRS.map(y=>y<=2025?histFn(y)/1e4:null),borderColor:cssv('--hist'),borderWidth:2.6,pointRadius:0,tension:.2,order:9}];
  SCN_ORD2.forEach(sc=>ds.push({label:SCN_LABEL[sc],data:LONG_YRS.map(y=>y>=2025?comb[sc][key][y-2025]/1e4:null),
   borderColor:cssv(ICVAR[sc]),borderWidth:3,pointRadius:0,tension:.2,order:1}));
- mk(id,{type:'line',data:{labels:LONG_YRS,datasets:ds},options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),LONG_YRS,window.innerWidth<560?10:5,'萬人次')});
+ mk(id,{type:'line',data:{labels:LONG_YRS,datasets:ds},options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),LONG_YRS,5,'萬人次')});
 }
 const lineLegend=first=>`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>${first}</div>`
   +SCN_ORD2.map(sc=>`<div class="lg"><i style="border-color:${cssv(ICVAR[sc])}"></i>${SCN_LABEL[sc]}</div>`).join('');
@@ -1540,7 +1554,7 @@ function renderTotalResults(){
   {label:'來臺人次',data:ix.map(i=>c.inb[i]/1e4),backgroundColor:CC.inb,borderRadius:0,barPercentage:.6},
   {label:'出國人次',data:ix.map(i=>c.ob[i]/1e4),backgroundColor:CC.ob,borderRadius:0,barPercentage:.6},
   {label:'轉機人次',data:ix.map(i=>c.xf[i]/1e4),backgroundColor:CC.xf,borderRadius:0,barPercentage:.6}
- ]},options:stackOpt(ys,5)});
+ ]},options:stackOpt(ys,1)});
  document.getElementById('zlg-comp').innerHTML=sqLegend([[CC.inb,'來臺人次'],[CC.ob,'出國人次'],[CC.xf,'轉機人次']]);
  sel.onchange=renderTotalResults;
 
