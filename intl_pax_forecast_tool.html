@@ -39,7 +39,8 @@ body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system
 /* ---- 頁首與頁籤 ---- */
 header{padding:28px 24px 0;max-width:900px;margin:0 auto}
 header h1{font-size:26px;font-weight:600;margin-bottom:6px}
-header p{font-size:16px;color:var(--ink2);max-width:64ch}
+header p{font-size:16px;color:var(--ink2)}
+header p.warnline{color:#B42318;font-weight:600;margin-top:8px}
 
 nav{position:sticky;top:0;z-index:50;background:var(--paper);border-bottom:1px solid var(--rule);margin-top:22px}
 .tabbar{max-width:900px;margin:0 auto;display:flex;gap:4px;padding:0 24px;overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -193,7 +194,8 @@ footer{max-width:900px;margin:0 auto;padding:32px 24px 48px;font-size:14.5px;col
 
 <header>
  <h1>台灣國際線旅客運量預測工具</h1>
- <p>整合國人出國、外籍旅客來臺與轉機過境三部分，供規劃討論用。四個模組已全部完成，可切換查看。</p>
+ <p>此工具模擬專家與政府單位在討論運量預測模型時，可針對參數進行討論與數值調整的「互動式模型工具」。日後如需即時討論，可快速調整數值，立即掌握數據的變化。</p>
+ <p class="warnline">警告：此模型工具計算出之數值非官方公告的運量預測結果，請使用者斟酌參考。</p>
 </header>
 
 <nav><div class="tabbar">
@@ -897,12 +899,14 @@ function showTab(t){
 document.querySelectorAll('.tab').forEach(b=>{
  if(b.disabled)return;
  b.onclick=()=>{
-  if(location.hash!=='#'+b.dataset.t) history.pushState(null,'','#'+b.dataset.t);
   showTab(b.dataset.t);
+  /* 更新網址；在不允許改網址的預覽環境（如 Claude 內嵌視窗）會被瀏覽器拒絕，略過即可，不影響切換 */
+  try{ if(location.hash!=='#'+b.dataset.t) history.pushState(null,'','#'+b.dataset.t); }catch(e){}
+  window.scrollTo({top:0,behavior:'instant'});
  };
 });
-window.addEventListener('popstate',()=>showTab(location.hash.slice(1)));
-window.addEventListener('hashchange',()=>{showTab(location.hash.slice(1));window.scrollTo(0,0);});
+window.addEventListener('popstate',()=>{showTab(location.hash.slice(1));window.scrollTo({top:0,behavior:'instant'});});
+window.addEventListener('hashchange',()=>{showTab(location.hash.slice(1));window.scrollTo({top:0,behavior:'instant'});});
 showTab(location.hash.slice(1));
 
 renderSummaryKPI();
