@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台灣國際線旅客運量預測工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --paper:#F1F3F4; --surf:#FFFFFF; --ink:#16202B; --ink2:#46545F; --ink3:#74818C;
+  --rule:#D8DEE2; --rule2:#E9EDEF;
+  --accent:#1F5F91; --consv:#7B93A6; --base:#1F5F91; --aggr:#B5502B;
+  --warnbg:#FBF2E8; --warn:#B25E1E;
+  --hist:#37474F;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#14181B; --surf:#1D2226; --ink:#ECEFF1; --ink2:#B7C1C9; --ink3:#8B96A0;
+    --rule:#333B40; --rule2:#2A3135;
+    --accent:#6FA8D8; --consv:#9FB4C4; --base:#6FA8D8; --aggr:#E08A5E;
+    --warnbg:#3A2A18; --warn:#E0A165;
+    --hist:#C7CDD1;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14181B; --surf:#1D2226; --ink:#ECEFF1; --ink2:#B7C1C9; --ink3:#8B96A0;
+  --rule:#333B40; --rule2:#2A3135;
+  --accent:#6FA8D8; --consv:#9FB4C4; --base:#6FA8D8; --aggr:#E08A5E;
+  --warnbg:#3A2A18; --warn:#E0A165;
+  --hist:#C7CDD1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system,BlinkMacSystemFont,sans-serif;
+ background:var(--paper);color:var(--ink);line-height:1.7;font-size:17px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+/* ---- 頁首與頁籤 ---- */
+header{padding:28px 24px 0;max-width:900px;margin:0 auto}
+header h1{font-size:26px;font-weight:600;margin-bottom:6px}
+header p{font-size:16px;color:var(--ink2);max-width:64ch}
+
+nav{position:sticky;top:0;z-index:50;background:var(--paper);border-bottom:1px solid var(--rule);margin-top:22px}
+.tabbar{max-width:900px;margin:0 auto;display:flex;gap:4px;padding:0 24px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{font:inherit;font-size:17px;font-weight:600;padding:16px 18px;border:none;background:transparent;
+ color:var(--ink2);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+.tab:disabled{color:var(--ink3);cursor:default}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tab small{display:block;font-size:13px;font-weight:400;margin-top:2px}
+
+.wrap{max-width:900px;margin:0 auto;padding:8px 24px 80px}
+.panel{display:none}
+.panel.on{display:block}
+
+/* ---- 段落結構（描述統計／模型說明與設定／預測結果）---- */
+.stepsec{margin-top:56px;padding-top:28px;border-top:1px solid var(--rule)}
+.stepsec:first-of-type{border-top:none;margin-top:36px}
+.stephd{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.stepno{font-size:15px;font-weight:600;color:var(--surf);background:var(--accent);
+ width:26px;height:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stephd h2{font-size:22px;font-weight:600}
+.stepnote{font-size:16px;color:var(--ink2);margin-bottom:22px;max-width:68ch}
+
+/* ---- 卡片與版塊 ---- */
+.card{background:var(--surf);border:1px solid var(--rule);padding:22px 24px;margin-bottom:18px}
+.chartbox{position:relative;height:260px;margin-top:14px}
+.diagram{width:100%;height:auto;margin:6px 0 26px}
+.dgh{font-size:17px;font-weight:600;fill:var(--ink)}
+.dgs{font-size:14.5px;fill:var(--ink2)}
+.cardhd{font-size:17px;font-weight:600;margin-bottom:2px}
+.cardsub{font-size:15px;color:var(--ink3)}
+
+/* ---- 展開/收合 ---- */
+details{margin-top:6px}
+summary{font-size:16px;font-weight:600;color:var(--accent);cursor:pointer;padding:12px 0;list-style:none;
+ display:flex;align-items:center;gap:8px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▸';display:inline-block;transition:transform .15s;font-size:13px}
+details[open] summary::before{transform:rotate(90deg)}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* ---- 情境卡 ---- */
+.scen-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:8px}
+.scen{background:var(--surf);border:1px solid var(--rule);border-left:5px solid var(--c);padding:18px 22px}
+.scen h3{font-size:19px;font-weight:600;margin-bottom:6px}
+.scen p{font-size:15.5px;color:var(--ink2);line-height:1.6}
+.scen p b{color:var(--ink);font-weight:600}
+.scen ul.scenlist{list-style:none;margin-top:6px}
+.scen ul.scenlist li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--rule2);font-size:15.5px;color:var(--ink2)}
+.scen ul.scenlist li:last-child{border-bottom:none}
+.scen ul.scenlist li b{color:var(--ink);font-weight:600;flex-shrink:0}
+.scen ul.scenlist li span{text-align:right}
+
+/* ---- 子段落標題（如「模型規劃」「情境設定」）---- */
+.substephd{font-size:18px;font-weight:600;color:var(--ink);margin:30px 0 12px}
+
+/* ---- KPI ---- */
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.kpi{background:var(--surf);border:1px solid var(--rule);border-top:5px solid var(--c);padding:22px 20px}
+.kpi .kn{font-size:16px;color:var(--ink2);margin-bottom:10px;font-weight:600}
+.kpi .kv{font-size:44px;font-weight:600;letter-spacing:-.01em;line-height:1.1}
+.kpi .ku{font-size:16px;color:var(--ink2);margin-left:4px}
+.kpi .ks{font-size:15px;color:var(--ink2);margin-top:10px;line-height:1.6}
+
+/* ---- 表單控制 ---- */
+.fld{margin-bottom:16px}
+.fld label{display:block;font-size:15.5px;color:var(--ink2);margin-bottom:6px;font-weight:600}
+select,input[type=number]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--rule);
+ background:var(--surf);color:var(--ink);font-variant-numeric:tabular-nums}
+select:focus,input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.evalline{font-size:14.5px;color:var(--ink2);margin-top:6px;font-variant-numeric:tabular-nums}
+.setgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.setcol h4{font-size:16px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--c)}
+.explain-grid{display:grid;grid-template-columns:1fr;gap:14px;margin:22px 0 30px}
+.explain-grid>div{background:var(--surf);border:1px solid var(--rule);padding:20px 22px}
+.explain-grid .eh{font-size:16.5px;font-weight:600;margin-bottom:8px}
+.explain-grid .ep{font-size:15.5px;color:var(--ink2);line-height:1.75}
+.explain-grid .ep b{color:var(--ink);font-weight:600}
+
+/* ---- 表格（含寬格式資料表）---- */
+.tblwrap{overflow-x:auto;border:1px solid var(--rule)}
+table{border-collapse:collapse;font-size:15.5px;white-space:nowrap;width:100%}
+th{text-align:right;padding:10px 14px;font-weight:600;color:var(--ink2);background:var(--rule2);
+ border-bottom:1px solid var(--rule);position:sticky;top:0}
+th:first-child{text-align:left;position:sticky;left:0;background:var(--rule2);z-index:2}
+td{text-align:right;padding:9px 14px;border-bottom:1px solid var(--rule2)}
+td:first-child{text-align:left;font-weight:600;position:sticky;left:0;background:var(--surf)}
+tbody tr:last-child td{border-bottom:none}
+.tblnote{font-size:14.5px;color:var(--ink3);padding:12px 4px 2px;line-height:1.6}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:15px;color:var(--ink2);margin-bottom:10px}
+.lg{display:flex;align-items:center;gap:6px}
+.lg i{display:block;width:20px;height:0;border-top:3px solid}
+.lg i.sq{height:14px;border-top:none;background:var(--sw)}
+
+/* ---- 來臺：子頁籤／市場選擇／群組徽章／信心標示 ---- */
+.mkres{margin-top:16px;padding:12px 14px;background:var(--rule2);font-size:15px;color:var(--ink2);line-height:1.7}
+.mkres b{color:var(--ink);font-weight:600}
+.gbadge{display:inline-block;font-size:13.5px;font-weight:600;padding:2px 8px;color:#fff;white-space:nowrap}
+.conf{display:inline-flex;gap:3px;align-items:center}
+.conf i{width:7px;height:7px;background:var(--rule);display:block}
+.conf i.on{background:var(--ink2)}
+.mkrow{display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--rule2);gap:12px}
+.mkacc{border-bottom:1px solid var(--rule2)}
+.mkacc:last-child{border-bottom:none}
+.mkacc summary.mkrow{cursor:pointer;border-bottom:none;list-style:none;padding:14px 4px}
+.mkacc summary.mkrow::-webkit-details-marker{display:none}
+.mkacc summary.mkrow::before{content:none}
+.mkacc summary.mkrow .mkname::before{content:'▸';display:inline-block;color:var(--ink3);font-size:13px;margin-right:8px;transition:transform .15s}
+.mkacc[open] summary.mkrow .mkname::before{transform:rotate(90deg)}
+.mkacc summary.mkrow:hover{background:var(--rule2)}
+.mkacc[open]{padding-bottom:20px}
+.mkrow:last-child{border-bottom:none}
+.mkname{font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px}
+.mkmeta{font-size:14.5px;color:var(--ink3);text-align:right}
+.pickbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.pickbar select{max-width:320px}
+
+.placeholder{padding:80px 24px;text-align:center;color:var(--ink3)}
+.placeholder h2{font-size:22px;color:var(--ink2);margin-bottom:10px;font-weight:600}
+.placeholder p{font-size:16px;max-width:50ch;margin:0 auto}
+
+footer{max-width:900px;margin:0 auto;padding:32px 24px 48px;font-size:14.5px;color:var(--ink3);line-height:1.7;border-top:1px solid var(--rule);margin-top:40px}
+
+@media(max-width:720px){
+ .scen-grid,.kpi-grid,.setgrid,.explain-grid{grid-template-columns:1fr}
+ header h1{font-size:22px}
+ .kpi .kv{font-size:38px}
+}
+@media(max-width:480px){
+ header{padding:20px 16px 0}
+ .wrap{padding:8px 16px 60px}
+ .tabbar{padding:0 16px}
+ .tab{padding:12px 12px;font-size:15px}
+ .tab small{font-size:10.5px}
+ .card{padding:16px}
+ .kpi{padding:18px 16px}
+ .kpi .kv{font-size:32px}
+ .scen{padding:16px}
+ .explain-grid>div{padding:16px}
+ .stephd h2{font-size:19px}
+ .diagram{margin:6px 0 18px}
+ .mkrow{flex-wrap:wrap;row-gap:6px}
+ .mkmeta{text-align:left;margin-left:auto}
+ footer{padding:24px 16px 36px}
+ .placeholder{padding:56px 16px}
+}
+</style>
+</head>
+<body>
+
+<header>
+ <h1>台灣國際線旅客運量預測工具</h1>
+ <p>整合國人出國、外籍旅客來臺與轉機過境三部分，供規劃討論用。四個模組已全部完成，可切換查看。</p>
+</header>
+
+<nav><div class="tabbar">
+ <button class="tab on" data-t="outbound" aria-selected="true">出國</button>
+ <button class="tab" data-t="inbound">來臺</button>
+ <button class="tab" data-t="transit">轉機過境</button>
+ <button class="tab" data-t="total">總計</button>
+</div></nav>
+
+<div class="wrap">
+
+<section class="panel on" id="panel-outbound">
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">1</span><h2>描述統計</h2></div>
+
+ <div class="kpi-grid" style="grid-template-columns:1fr 1fr" id="statKpi"></div>
+
+ <div class="card">
+  <div class="cardhd">國人出國人次</div>
+  <div class="cardsub">交通部觀光署統計，1995–2025 年，單位：萬人次</div>
+  <div class="chartbox"><canvas id="c_ob"></canvas></div>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">出國率</div>
+  <div class="cardsub">出國人次 ÷ 總人口 × 100%</div>
+  <div class="chartbox"><canvas id="c_rate"></canvas></div>
+ </div>
+
+ <details>
+  <summary>所得與人口資料</summary>
+  <div class="card">
+   <div class="cardhd">人均GDP（實質）</div>
+   <div class="cardsub">行政院主計總處，1995–2025 年</div>
+   <div class="chartbox"><canvas id="c_gdp"></canvas></div>
+  </div>
+  <div class="card">
+   <div class="cardhd">總人口</div>
+   <div class="cardsub">內政部戶籍人口；2026年起為國家發展委員會三種推估</div>
+   <div class="chartbox"><canvas id="c_pop"></canvas></div>
+  </div>
+ </details>
+
+ <details>
+  <summary>查看歷年原始數據（表格）</summary>
+  <div class="tblwrap"><table id="t_wide"></table></div>
+ </details>
+</div>
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">2</span><h2>模型說明與設定</h2></div>
+
+ <div class="substephd">模型規劃</div>
+ <p class="stepnote">模型的核心，是用歷史資料估計「所得」跟「出國意願」的關係，再用這個關係從2025年往後逐年推算到2050年。</p>
+
+ <svg class="diagram" viewBox="0 0 680 480" role="img">
+  <title>出國預測模型流程圖</title>
+  <desc>共四步驟：①迴歸找出所得與出國率的關聯性（所得彈性）②設定未來成長幅度推算人均GDP③逐年算出出國率（已反映上限機制）④乘以人口推計得到出國人口數。</desc>
+  <defs><marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+   <path d="M2 1L8 5L2 9" fill="none" stroke="var(--ink3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+  <line x1="340" y1="88" x2="340" y2="140" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <line x1="340" y1="204" x2="340" y2="256" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <line x1="340" y1="332" x2="340" y2="384" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar1)"/>
+
+  <rect x="60" y="24" width="560" height="64" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="60" y="24" width="560" height="4" fill="var(--ink3)"/>
+  <text class="dgh" x="340" y="48" text-anchor="middle" dominant-baseline="central">① 以迴歸找到所得與出國率的關聯性（所得彈性e）</text>
+  <text class="dgs" x="340" y="70" text-anchor="middle" dominant-baseline="central">
+   <tspan fill="var(--accent)">自變數：人均GDP（實質）</tspan><tspan>　</tspan><tspan fill="var(--aggr)">應變數：出國率</tspan></text>
+
+  <rect x="60" y="140" width="560" height="64" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="60" y="140" width="560" height="4" fill="var(--accent)"/>
+  <text class="dgh" x="340" y="164" text-anchor="middle" dominant-baseline="central">② 推算未來人均GDP</text>
+  <text class="dgs" x="340" y="186" text-anchor="middle" dominant-baseline="central">設定未來成長幅度，得出人均GDP（實質）路徑</text>
+
+  <rect x="60" y="256" width="560" height="76" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="60" y="256" width="560" height="4" fill="var(--accent)"/>
+  <text class="dgh" x="340" y="280" text-anchor="middle" dominant-baseline="central">③ 逐年算出出國率</text>
+  <text class="dgs" x="340" y="302" text-anchor="middle" dominant-baseline="central">有效彈性隨出國率接近上限R_max而遞減，據此得出當年出國率</text>
+
+  <rect x="60" y="384" width="560" height="64" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="60" y="384" width="560" height="4" fill="var(--aggr)"/>
+  <text class="dgh" x="340" y="408" text-anchor="middle" dominant-baseline="central">④ 乘上人口，得到出國人次</text>
+  <text class="dgs" x="340" y="430" text-anchor="middle" dominant-baseline="central">出國人次(t) ＝ 出國率(t) × 人口推估情境(t)</text>
+ </svg>
+
+ <details>
+  <summary>模型細節說明</summary>
+  <div class="explain-grid">
+   <div>
+    <div class="eh">所得彈性 e — 所得與出國意願的關係</div>
+    <p class="ep">用過去的實際資料回歸出「人均GDP（實質）每成長1%，出國率跟著成長多少%」，這個比例就是彈性e。估計時排除2020–2023疫情四年，並可選擇用最近15、20、25或30年的資料來估——用愈短的近期資料愈能反映最近的行為，但樣本數也愈少。</p>
+    <div class="tblwrap" style="margin-top:12px"><table>
+     <thead><tr><th>估計區間</th><th>e</th><th>R²</th><th>樣本數n</th></tr></thead>
+     <tbody>
+      <tr><td>15年（2010–2025）</td><td>1.357</td><td>0.760</td><td>12</td></tr>
+      <tr><td>20年（2005–2025）</td><td>1.379</td><td>0.853</td><td>17</td></tr>
+      <tr><td>25年（2000–2025）</td><td>1.171</td><td>0.853</td><td>22</td></tr>
+      <tr><td>30年（1995–2025）</td><td>1.046</td><td>0.881</td><td>27</td></tr>
+     </tbody>
+    </table></div>
+    <p class="ep" style="margin-top:8px;font-size:14.5px">e值不隨區間長度單調變化（15年比20年低），估計時COVID年（2020–2023）已排除。</p>
+   </div>
+   <div>
+    <div class="eh">GDP預測設定</div>
+    <p class="ep">2026–2031年直接採用IMF對台灣的官方預測，人均GDP（實質）年成長率為：<b>2026年+5.1%、2027年+3.0%、2028年+2.5%、2029年+2.4%、2030年+2.4%、2031年+2.1%</b>。2031年後IMF沒有再往下預測，改用您設定的終端成長率，並從2031年的成長率開始平滑過渡，避免銜接處出現斷點。</p>
+   </div>
+   <div>
+    <div class="eh">人口推估情境</div>
+    <p class="ep">2026年起的人口採用國家發展委員會的推估，分高、中、低三種情境，反映生育率、死亡率、移民等假設的不確定性。三個情境的出國人次預測，各自搭配對應的人口情境計算。</p>
+   </div>
+   <div>
+    <div class="eh">為什麼要設定 R<sub>max</sub>（出國率上限）</div>
+    <p class="ep">用歷史彈性關係往未來推算，若不設上限，25年以上的長期預測會讓出國率一路加速上升、脫離合理範圍。R<sub>max</sub>讓成長速度隨著接近上限而自動趨緩，符合市場終將飽和的判斷。R<sub>max</sub>本身是您設定的判斷值，不是統計估計出來的數字，下方每個情境都可以個別調整。</p>
+   </div>
+  </div>
+ </details>
+
+ <div class="substephd">情境設定</div>
+ <p class="stepnote">三個情境分別在四個地方設定不同數值：彈性估計區間、GDP終端成長率、人口推估情境、出國率上限R<sub>max</sub>。</p>
+
+ <div class="scen-grid" id="scenCards"></div>
+
+ <details>
+  <summary>調整參數</summary>
+  <div class="setgrid" id="scenSet"></div>
+ </details>
+</div>
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">3</span><h2>預測結果</h2></div>
+ <p class="stepnote" id="ordWarn" style="display:none;color:var(--warn);background:var(--warnbg);padding:14px 16px;border-left:4px solid var(--warn)"></p>
+
+ <div class="kpi-grid" id="kpiGrid"></div>
+
+ <div class="card">
+  <div class="cardhd">2025–2050 出國人次預測</div>
+  <div class="legend" id="lg-main"></div>
+  <div class="chartbox" style="height:340px"><canvas id="c_main"></canvas></div>
+ </div>
+
+ <details>
+  <summary>逐年詳細數字</summary>
+  <div class="tblwrap"><table id="t_year"></table></div>
+ </details>
+</div>
+
+</section>
+
+<section class="panel" id="panel-inbound">
+
+<div class="stepsec" style="margin-top:0">
+ <div class="stephd"><span class="stepno">1</span><h2>描述統計</h2></div>
+
+ <div class="card">
+  <div class="cardhd">歷年來臺總人數</div>
+  <div class="cardsub">交通部觀光署統計，2000–2025 年，單位：萬人次</div>
+  <div class="chartbox"><canvas id="ic_total"></canvas></div>
+ </div>
+
+ <div class="substephd">來臺市場分析</div>
+ <p class="stepnote">16個市場依所得水準、成長階段與驅動因素，分成四組：</p>
+
+ <div class="explain-grid">
+  <div>
+   <div class="eh" style="color:#1F5F91">G1 亞太成熟飽和型 — 日本、韓國、香港、澳門、新加坡</div>
+   <p class="ep">所得水準高、來臺已久，市場相對飽和，成長趨緩，主要受景氣循環與航線便利度影響。</p>
+   <p class="ep" style="margin-top:8px;font-size:14.5px">2019：554.2萬人（占當年來臺總數49.5%）　→　2025：413.8萬人（占51.2%），較2019年成長 −25.3%</p>
+  </div>
+  <div>
+   <div class="eh" style="color:#2E7D4F">G2 亞太所得成長型 — 泰國、印尼、菲律賓、越南、馬來西亞</div>
+   <p class="ep">所得仍在成長階段，出國旅遊滲透率仍有提升空間，成長潛力較大。</p>
+   <p class="ep" style="margin-top:8px;font-size:14.5px">2019：206.1萬人（占當年來臺總數18.4%）　→　2025：204.4萬人（占25.3%），較2019年成長 −0.8%</p>
+  </div>
+  <div>
+   <div class="eh" style="color:#A63A26">G3 政策影響型 — 中國大陸</div>
+   <p class="ep">來臺人數主要受兩岸政策與交流狀態決定，較不受所得或人口驅動。</p>
+   <p class="ep" style="margin-top:8px;font-size:14.5px">2019：224.2萬人（占當年來臺總數20.0%）　→　2025：40.3萬人（占5.0%），較2019年成長 −82.0%</p>
+  </div>
+  <div>
+   <div class="eh" style="color:#A38220">G4 長距離穩定型 — 美國、加拿大、歐洲地區、大洋洲地區、其他</div>
+   <p class="ep">距離遠、多為成熟市場，來臺動機以商務、探親、深度旅遊為主，成長平穩。</p>
+   <p class="ep" style="margin-top:8px;font-size:14.5px">2019：134.7萬人（占當年來臺總數12.0%）　→　2025：149.2萬人（占18.5%），較2019年成長 +10.8%</p>
+  </div>
+ </div>
+ <p class="stepnote" style="font-size:14.5px;margin-top:-4px">政策影響型（中國大陸）2025年僅為2019年的18%，長距離穩定型已超過2019年水準，兩者走勢分歧明顯。</p>
+
+ <div class="card">
+  <div class="cardhd">依市場類型分解</div>
+  <div class="cardsub">實際來臺人數，單位：萬人次</div>
+  <div class="chartbox"><canvas id="ic_group"></canvas></div>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">依市場類型分解（占比）</div>
+  <div class="cardsub">各組占當年來臺總人數的百分比，凸顯組成隨時間的變化</div>
+  <div class="chartbox"><canvas id="ic_group_pct"></canvas></div>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">各市場出國率與人均GDP</div>
+  <div class="cardsub">各市場自身的出國率（出國人次÷人口）與人均GDP的歷年軌跡，2000–2025年（排除2020–2023疫情年），▲為最新一年，臺灣以虛線表示。雙對數座標。香港、加拿大出國率含大量陸路通勤，數值偏高；越南、馬來西亞無歷年官方出國統計，未列入</div>
+  <div class="chartbox" style="height:340px"><canvas id="ic_scatter"></canvas></div>
+ </div>
+
+ <div class="substephd">各國描述統計</div>
+ <p class="stepnote">選擇一個市場，查看其歷年來臺人數、所得與人口資料。</p>
+
+ <div class="pickbar">
+  <div class="fld" style="margin-bottom:0;flex:1">
+   <label for="marketSel">選擇市場</label>
+   <select id="marketSel"><option value="">請選擇市場</option></select>
+  </div>
+ </div>
+
+ <p id="mk-empty" style="color:var(--ink3);font-size:15.5px;padding:8px 0 4px">請從上方選擇一個市場。</p>
+
+ <div id="mk-content" hidden>
+  <p class="stepnote" id="mk-note"></p>
+  <div class="card">
+   <div class="cardhd">來臺人數</div>
+   <div class="chartbox"><canvas id="mc_inb"></canvas></div>
+  </div>
+  <details>
+   <summary>所得與人口資料</summary>
+   <div class="card">
+    <div class="cardhd">人均GDP</div>
+    <div class="chartbox"><canvas id="mc_gdp"></canvas></div>
+   </div>
+   <div class="card">
+    <div class="cardhd">總人口</div>
+    <div class="chartbox"><canvas id="mc_pop"></canvas></div>
+   </div>
+  </details>
+ </div>
+</div>
+
+
+
+ <div class="stepsec">
+  <div class="stephd"><span class="stepno">2</span><h2>模型說明與設定</h2></div>
+  <p class="stepnote">16個市場分四組，每個市場依資料狀況擇一種方式估算，最後加總得到全部來臺人數。</p>
+
+  <svg class="diagram" viewBox="0 0 680 340" role="img">
+   <title>來臺旅客預測模型流程圖</title>
+   <desc>16個市場依特性分四組，各市場擇一試算模式，加總後產生三組情境。</desc>
+   <defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="var(--ink3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+   <line x1="340" y1="86" x2="132" y2="142" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+   <line x1="340" y1="86" x2="339" y2="142" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+   <line x1="340" y1="86" x2="546" y2="142" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+   <line x1="132" y1="198" x2="340" y2="254" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+   <line x1="339" y1="198" x2="340" y2="254" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+   <line x1="546" y1="198" x2="340" y2="254" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar2)"/>
+
+   <rect x="190" y="24" width="300" height="62" fill="var(--surf)" stroke="var(--rule)"/>
+   <rect x="190" y="24" width="300" height="4" fill="var(--ink3)"/>
+   <text class="dgh" x="340" y="48" text-anchor="middle" dominant-baseline="central">16個市場</text>
+   <text class="dgs" x="340" y="68" text-anchor="middle" dominant-baseline="central">依特性分為G1–G4四組</text>
+
+   <rect x="40" y="142" width="185" height="56" fill="var(--surf)" stroke="var(--rule)"/>
+   <rect x="40" y="142" width="185" height="4" fill="var(--accent)"/>
+   <text class="dgh" x="132" y="164" text-anchor="middle" dominant-baseline="central" style="font-size:16px">模式1 來臺率法</text>
+   <text class="dgs" x="132" y="184" text-anchor="middle" dominant-baseline="central">人口×出國率×來臺率</text>
+
+   <rect x="247" y="142" width="185" height="56" fill="var(--surf)" stroke="var(--rule)"/>
+   <rect x="247" y="142" width="185" height="4" fill="var(--accent)"/>
+   <text class="dgh" x="339" y="164" text-anchor="middle" dominant-baseline="central" style="font-size:16px">模式2 成長率法</text>
+   <text class="dgs" x="339" y="184" text-anchor="middle" dominant-baseline="central">2025人數×分段成長率</text>
+
+   <rect x="454" y="142" width="185" height="56" fill="var(--surf)" stroke="var(--rule)"/>
+   <rect x="454" y="142" width="185" height="4" fill="var(--accent)"/>
+   <text class="dgh" x="546" y="164" text-anchor="middle" dominant-baseline="central" style="font-size:16px">模式3 情境設定法</text>
+   <text class="dgs" x="546" y="184" text-anchor="middle" dominant-baseline="central">中國大陸專用</text>
+
+   <rect x="190" y="254" width="300" height="62" fill="var(--surf)" stroke="var(--rule)"/>
+   <rect x="190" y="254" width="300" height="4" fill="var(--aggr)"/>
+   <text class="dgh" x="340" y="278" text-anchor="middle" dominant-baseline="central">加總＋三情境並列</text>
+   <text class="dgs" x="340" y="298" text-anchor="middle" dominant-baseline="central">保守 ／ 基準 ／ 積極</text>
+  </svg>
+
+  <div class="explain-grid">
+   <div>
+    <div class="eh">模式1　來臺率法</div>
+    <p class="ep">適合有完整所得與出國統計的市場。用「這個市場的人多常出國、其中多少比例選臺灣」來推算，來臺人數會隨所得成長變化。日、韓、星、泰、印尼、美等6個市場採用。</p>
+   </div>
+   <div>
+    <div class="eh">模式2　成長率法</div>
+    <p class="ep">適合資料較不完整、或出國行為跟所得關聯不明顯的市場，也適合出國統計本身受陸路通勤干擾、來臺率不可靠的市場（港、澳）。直接假設來臺人數依一個設定的成長率逐年增加，不特別連結所得，成長率參考IATA長程/短程航空需求預測設定。港、澳、菲、越、馬、加、歐洲、大洋洲、其他等9個市場採用。</p>
+   </div>
+   <div>
+    <div class="eh">模式3　情境設定法</div>
+    <p class="ep">適合來臺人數主要受政策而非經濟因素決定的市場，目前僅中國大陸採用。三個情境2050年的目標人數用情境判斷直接指定，不透過所得或人口模型推算。</p>
+   </div>
+  </div>
+
+  <div class="card">
+   <div class="cardhd">16個市場重點設定</div>
+   <div class="cardsub">分組、採用模式與該模式下的關鍵設定值（基準情境）。點開任一市場即可直接調整參數，下方預測結果會即時更新</div>
+   <div id="mkList" style="margin-top:8px"></div>
+  </div>
+ </div>
+
+ <div class="stepsec">
+  <div class="stephd"><span class="stepno">3</span><h2>預測結果</h2></div>
+  <div class="kpi-grid" id="iKpiGrid"></div>
+  <div class="card">
+   <div class="cardhd">2025–2050 來臺人數預測（16個市場合計）</div>
+   <div class="legend" id="ilg-main"></div>
+   <div class="chartbox" style="height:340px"><canvas id="ic_main"></canvas></div>
+  </div>
+  <details>
+   <summary>逐年詳細數字</summary>
+   <div class="tblwrap"><table id="it_year"></table></div>
+  </details>
+ </div>
+
+
+
+</section>
+<section class="panel" id="panel-transit">
+
+<div class="stepsec" style="margin-top:0">
+ <div class="stephd"><span class="stepno">1</span><h2>描述統計</h2></div>
+ <p class="stepnote">官方統計沒有「轉機人次」這一項，所以分兩步呈現：先列出民航局統計裡實際有的數字，再用「國際航線總量－來臺人次－出國人次」推估轉機人次。</p>
+
+ <div class="substephd">官方統計</div>
+
+ <div class="card">
+  <div class="cardhd">國際航線旅客人次（官方分類）</div>
+  <div class="cardsub">交通部民航局統計，全台灣機場合計，1996–2025年，單位：萬人次</div>
+  <div class="legend" id="tlg-off" style="margin-top:12px"></div>
+  <div class="chartbox" style="height:300px"><canvas id="tc_off"></canvas></div>
+  <p class="tblnote">國際線與兩岸線皆為入境＋出境的雙向人次；兩岸直航自民國97年（2008年）開始。</p>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">過境人次（官方統計）</div>
+  <div class="cardsub">交通部民航局統計，全台灣機場合計，1996–2025年（淺色為98年以前）</div>
+  <div class="chartbox"><canvas id="tc_hist"></canvas></div>
+  <p class="tblnote">民航局自民國98年（2009年）起依國際機場協會（ACI）的定義修正統計方式：原本算在「過境」裡的轉機（換機）旅客，改分別計入國際線與兩岸線的入境、出境人次，過境只留下同班機號、不換機的旅客。因此98年前後的過境數字不能直接比較：98年前約150–260萬人次，98年後約20–40萬人次。這是統計定義改變造成的，不是市場萎縮。</p>
+ </div>
+
+ <div class="substephd">推估轉機人次</div>
+
+ <div class="explain-grid" style="margin-top:0">
+  <div>
+   <div class="eh">推估方式</div>
+   <p class="ep"><b>轉機人次（含過境）＝ 國際航線總量 －（來臺人次＋出國人次）</b></p>
+   <p class="ep" style="margin-top:8px">國際航線總量＝民航局國際線（不含兩岸）＋兩岸線＋過境。來臺人次、出國人次＝本工具來臺、出國模組使用的人數×2（入境、出境各算一次）。一位轉機旅客在機場會用到到站、離站兩次設施，統計上也算兩人次。</p>
+   <p class="ep" style="margin-top:8px">這個算法用總量扣除，不受98年統計方式修正影響，98年前後的結果可以接續。這個差額除了轉機，也包含兩套統計本身的口徑落差（例如外籍居留者的往返不一定列入來臺旅客），所以標示為推估值。</p>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">轉機人次（推估）</div>
+  <div class="cardsub">2000–2025年，單位：萬人次（淺色為2020–2023疫情年）</div>
+  <div class="chartbox"><canvas id="tc_xf"></canvas></div>
+ </div>
+
+ <div class="card">
+  <div class="cardhd">轉機比例：轉機人次 ÷（來臺人次＋出國人次）</div>
+  <div class="cardsub">2000–2025年；虛線為2012–2019年平均；淺色點為2020–2023疫情年，數值受扭曲，不列入參考</div>
+  <div class="chartbox"><canvas id="tc_ratio"></canvas></div>
+  <div class="tblwrap" style="margin-top:16px"><table id="tt_ratio"></table></div>
+ </div>
+</div>
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">2</span><h2>模型說明與設定</h2></div>
+
+ <div class="substephd">模型規劃</div>
+ <p class="stepnote">先有來臺、出國旅客撐起航班密度，航空公司才有條件經營轉機航線，所以轉機人次以兩者的人次合計為基礎，乘上一個轉機比例。</p>
+ <div class="explain-grid" style="margin-top:0">
+  <div>
+   <div class="eh">計算方式</div>
+   <p class="ep"><b>轉機人次(t) ＝（來臺人次(t)＋出國人次(t)）× 轉機比例(t)</b></p>
+   <p class="ep" style="margin-top:8px">轉機比例從2025年的實際值出發，逐年平滑過渡到情境設定的目標比例，達到目標年後維持不變。轉機旅客多為第三國之間往來（例如東南亞經桃園往返北美），比例高低主要反映桃園機場的樞紐競爭力與航空公司航網策略，不直接受台灣本身的所得或人口影響，因此比例是判斷值，不是由迴歸估計出來的。</p>
+  </div>
+ </div>
+
+ <div class="substephd">情境設定</div>
+ <p class="stepnote" id="tScenNote"></p>
+ <div class="scen-grid" id="tScenCards"></div>
+ <details>
+  <summary>調整參數</summary>
+  <div class="setgrid" id="tScenSet"></div>
+ </details>
+</div>
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">3</span><h2>預測結果</h2></div>
+ <div class="kpi-grid" id="tKpiGrid"></div>
+ <div class="card">
+  <div class="cardhd">2000–2050 轉機人次</div>
+  <div class="cardsub">2025年以前為推估的歷史值，2026年起為三情境預測，單位：萬人次</div>
+  <div class="legend" id="tlg-main" style="margin-top:12px"></div>
+  <div class="chartbox" style="height:320px"><canvas id="tc_main"></canvas></div>
+ </div>
+</div>
+
+</section>
+<section class="panel" id="panel-total">
+
+<div class="stepsec" style="margin-top:0">
+ <div class="stephd"><span class="stepno">1</span><h2>預測結果</h2></div>
+ <div class="kpi-grid" id="zKpiGrid"></div>
+ <div class="card">
+  <div class="cardhd">2000–2050 全台灣國際航線旅客人次</div>
+  <div class="cardsub">2025年以前為民航局實際值，2026年起為三情境預測，單位：萬人次</div>
+  <div class="legend" id="zlg-main" style="margin-top:12px"></div>
+  <div class="chartbox" style="height:340px"><canvas id="zc_main"></canvas></div>
+ </div>
+</div>
+
+<div class="stepsec">
+ <div class="stephd"><span class="stepno">2</span><h2>結果說明</h2></div>
+ <p class="stepnote">國際航線旅客人次由來臺、出國、轉機三部分相加，分別由三個模組估算。三模組的情境（保守／基準／積極）名稱一致，直接取同名情境加總；任一模組調整參數，這裡會自動更新。</p>
+ <svg class="diagram" viewBox="0 0 680 300" role="img">
+  <title>國際航線旅客人次組成</title>
+  <desc>來臺人次、出國人次、轉機人次三項相加，得到國際航線旅客人次；轉機人次由來臺與出國人次乘上轉機比例。</desc>
+  <defs><marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+   <path d="M2 1L8 5L2 9" fill="none" stroke="var(--ink3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+  <line x1="120" y1="104" x2="300" y2="208" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="340" y1="104" x2="340" y2="208" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar3)"/>
+  <line x1="560" y1="104" x2="380" y2="208" stroke="var(--ink3)" stroke-width="1.5" marker-end="url(#ar3)"/>
+
+  <rect x="20" y="30" width="195" height="74" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="20" y="30" width="195" height="4" fill="#2E7D4F"/>
+  <text class="dgh" x="117" y="58" text-anchor="middle" dominant-baseline="central">來臺人次</text>
+  <text class="dgs" x="117" y="82" text-anchor="middle" dominant-baseline="central">來臺人數 × 2</text>
+
+  <rect x="242" y="30" width="195" height="74" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="242" y="30" width="195" height="4" fill="#1F5F91"/>
+  <text class="dgh" x="339" y="58" text-anchor="middle" dominant-baseline="central">出國人次</text>
+  <text class="dgs" x="339" y="82" text-anchor="middle" dominant-baseline="central">出國人數 × 2</text>
+
+  <rect x="464" y="30" width="195" height="74" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="464" y="30" width="195" height="4" fill="#A38220"/>
+  <text class="dgh" x="561" y="58" text-anchor="middle" dominant-baseline="central">轉機人次</text>
+  <text class="dgs" x="561" y="82" text-anchor="middle" dominant-baseline="central">（來臺＋出國）× 轉機比例</text>
+
+  <rect x="190" y="208" width="300" height="66" fill="var(--surf)" stroke="var(--rule)"/>
+  <rect x="190" y="208" width="300" height="4" fill="var(--aggr)"/>
+  <text class="dgh" x="340" y="234" text-anchor="middle" dominant-baseline="central">國際航線旅客人次</text>
+  <text class="dgs" x="340" y="256" text-anchor="middle" dominant-baseline="central">三項相加，保守／基準／積極</text>
+ </svg>
+ <p class="stepnote" id="zCheckNote" style="font-size:14.5px"></p>
+ <div class="card">
+  <div class="pickbar" style="margin-bottom:4px">
+   <div><div class="cardhd">預測組成</div><div class="cardsub">每5年，單位：萬人次</div></div>
+   <div class="fld" style="margin-bottom:0;min-width:180px"><label for="zScenSel">情境</label>
+    <select id="zScenSel"><option value="B">保守</option><option value="base" selected>基準</option><option value="A">積極</option></select></div>
+  </div>
+  <div class="legend" id="zlg-comp"></div>
+  <div class="chartbox" style="height:300px"><canvas id="zc_comp"></canvas></div>
+ </div>
+ <details>
+  <summary>逐年詳細數字（拆解來臺／出國／轉機）</summary>
+  <div class="tblwrap"><table id="zt_year"></table></div>
+ </details>
+</div>
+
+</section>
+
+</div>
+
+<footer>
+ 資料來源：行政院主計總處國民所得統計、內政部戶籍人口統計、交通部觀光署國人出國人次統計、國家發展委員會中華民國人口推估、IMF World Economic Outlook。本工具為規劃討論用途，所有情境數值需經專業判斷後方可採用。
+</footer>
+
+<script>
+const HIST=[{y:1995,gdp:7572.7,pop:21357431,pc:354570,ob:5187341,rate:24.288},{y:1996,gdp:8040.4,pop:21525433,pc:373526,ob:5710237,rate:26.528},{y:1997,gdp:8527.0,pop:21742815,pc:392175,ob:6140580,rate:28.242},{y:1998,gdp:8885.5,pop:21928591,pc:405204,ob:5889003,rate:26.855},{y:1999,gdp:9483.7,pop:22092387,pc:429227,ob:6463869,rate:29.258},{y:2000,gdp:10082.5,pop:22276672,pc:452599,ob:7238391,rate:32.493},{y:2001,gdp:9941.2,pop:22405568,pc:443696,ob:7025975,rate:31.358},{y:2002,gdp:10486.3,pop:22520776,pc:465613,ob:7207865,rate:32.005},{y:2003,gdp:10929.3,pop:22604550,pc:483499,ob:5779569,rate:25.568},{y:2004,gdp:11689.1,pop:22689122,pc:515185,ob:7525766,rate:33.169},{y:2005,gdp:12318.4,pop:22770383,pc:540955,ob:7898321,rate:34.687},{y:2006,gdp:13029.2,pop:22876527,pc:569534,ob:8377086,rate:36.619},{y:2007,gdp:13921.7,pop:22958360,pc:606390,ob:8551638,rate:37.248},{y:2008,gdp:14032.9,pop:23037031,pc:609144,ob:7876677,rate:34.191},{y:2009,gdp:13806.5,pop:23119772,pc:597217,ob:7497195,rate:32.428},{y:2010,gdp:15221.0,pop:23162123,pc:657148,ob:8770823,rate:37.867},{y:2011,gdp:15780.1,pop:23224912,pc:679449,ob:8917352,rate:38.396},{y:2012,gdp:16130.5,pop:23315822,pc:691827,ob:9580142,rate:41.089},{y:2013,gdp:16531.0,pop:23373517,pc:707250,ob:10394418,rate:44.471},{y:2014,gdp:17311.1,pop:23433753,pc:738723,ob:11155298,rate:47.604},{y:2015,gdp:17564.7,pop:23492074,pc:747644,ob:12433262,rate:52.925},{y:2016,gdp:17945.0,pop:23539816,pc:762322,ob:13774159,rate:58.514},{y:2017,gdp:18602.1,pop:23571227,pc:789181,ob:14767580,rate:62.651},{y:2018,gdp:19142.6,pop:23588932,pc:811509,ob:15683424,rate:66.486},{y:2019,gdp:19727.5,pop:23603121,pc:835800,ob:16096135,rate:68.195},{y:2020,gdp:20402.2,pop:23561236,pc:866009,ob:2273862,rate:9.651},{y:2021,gdp:21773.3,pop:23375314,pc:931458,ob:357399,rate:1.529},{y:2022,gdp:22357.6,pop:23264640,pc:960996,ob:1480079,rate:6.362},{y:2023,gdp:22600.2,pop:23420442,pc:964978,ob:11322683,rate:48.345},{y:2024,gdp:23790.5,pop:23400220,pc:1016678,ob:15958964,rate:68.200},{y:2025,gdp:25873.5,pop:23299132,pc:1110493,ob:17870160,rate:76.699}];
+const IMF={2026:27194.1,2027:28001.6,2028:28687.7,2029:29367.6,2030:30078.8,2031:30717.9};
+const POP={
+H:{2026:23284195,2027:23209312,2028:23128818,2029:23045044,2030:22954592,2031:22858001,2032:22755897,2033:22648692,2034:22536776,2035:22420309,2036:22299675,2037:22175606,2038:22047852,2039:21915295,2040:21776742,2041:21632012,2042:21482008,2043:21326747,2044:21166404,2045:21001071,2046:20831231,2047:20656205,2048:20476257,2049:20291881,2050:20103085},
+M:{2026:23273147,2027:23195160,2028:23111886,2029:23026002,2030:22933157,2031:22833312,2032:22726577,2033:22612894,2034:22492493,2035:22365303,2036:22231082,2037:22090240,2038:21943123,2039:21789273,2040:21628119,2041:21459743,2042:21285123,2043:21104490,2044:20918211,2045:20726501,2046:20530005,2047:20328324,2048:20121945,2049:19911391,2050:19696831},
+L:{2026:23260650,2027:23178397,2028:23090938,2029:23000621,2030:22902877,2031:22797474,2032:22684288,2033:22563078,2034:22433672,2035:22295604,2036:22148778,2037:21994087,2038:21832168,2039:21662843,2040:21485807,2041:21301281,2042:21110304,2043:20913194,2044:20710364,2045:20502146,2046:20289218,2047:20071224,2048:19848693,2049:19622169,2050:19391816}};
+const H=Object.fromEntries(HIST.map(d=>[d.y,d])), BASE=H[2025], COVID=[2020,2021,2022,2023];
+const PSN={H:'高推估',M:'中推估',L:'低推估'};
+
+/* cagr() 由 inbound 引擎提供（兩邊共用同一份，行為相容） */
+function estimate(from,ex){
+ const d=HIST.filter(r=>r.y>=from&&r.y<=2025&&!(ex&&COVID.includes(r.y))),n=d.length;
+ const X=d.map(r=>Math.log(r.pc)),Y=d.map(r=>Math.log(r.rate));
+ const mx=X.reduce((a,b)=>a+b,0)/n,my=Y.reduce((a,b)=>a+b,0)/n;
+ let sxy=0,sxx=0,syy=0;
+ for(let i=0;i<n;i++){const dx=X[i]-mx,dy=Y[i]-my;sxy+=dx*dy;sxx+=dx*dx;syy+=dy*dy}
+ return {e:sxy/sxx,r2:(sxy*sxy)/(sxx*syy),n};
+}
+/* GDP 路徑：2026-31 IMF；2032+ 固定或線性遞減 */
+/* 起始成長率鎖定為 IMF 2031 年成長率，確保 2031→2032 無斷點 */
+const G_ANCHOR=(IMF[2031]/IMF[2030]-1)*100;
+function gdpSeriesOB(gT,mode,end){
+ const o={};
+ for(let y=2026;y<=Math.min(2031,end);y++) o[y]=IMF[y];
+ if(end<=2031) return o;
+ let v=IMF[2031], n=end-2031;
+ for(let i=1;i<=n;i++){
+  const y=2031+i;
+  const g = mode==='fixed'? G_ANCHOR : (n>1? G_ANCHOR+(gT-G_ANCHOR)*(i-1)/(n-1) : G_ANCHOR);
+  v=v*(1+g/100); o[y]=v;
+ }
+ return o;
+}
+/* Logistic 飽和：隱含彈性 e(t) = b × (1 − R/Rmax)，b 由基年彈性反推
+   R→Rmax 時彈性趨近 0，彈性遞減為自動結果，無須另設規則 */
+function project(e,gT,mode,ps,end,Rmax){
+ const gs=gdpSeriesOB(gT,mode,end),out=[];
+ const cap = (Rmax&&Rmax>BASE.rate)?Rmax:null;
+ const b = cap? e/(1-BASE.rate/cap) : null;
+ let rate=BASE.rate,pcPrev=BASE.pc;
+ for(let y=2026;y<=end;y++){
+  const pop=POP[ps][y],gdp=gs[y],pc=gdp*1e9/pop;
+  const ey = cap? b*(1-rate/cap) : e;
+  rate=rate*Math.pow(pc/pcPrev,ey);pcPrev=pc;
+  out.push({y,pop,gdp,pc,rate,ob:rate/100*pop,e:ey});
+ }
+ return out;
+}
+
+const S=[{id:'A',name:'保守',win:1995,gT:1.5,pop:'L',rmax:140},
+         {id:'B',name:'基準',win:2000,gT:2.0,pop:'M',rmax:170},
+         {id:'C',name:'積極',win:2005,gT:2.5,pop:'H',rmax:200}];
+let VIEW='n',END=2050,EX=true,GMODE='decay';
+const WINS=[[1995,'30 年（1995–2025）'],[2000,'25 年（2000–2025）'],[2005,'20 年（2005–2025）'],[2010,'15 年（2010–2025）']];
+
+const CVAR={A:'--consv',B:'--base',C:'--aggr'};
+const root=getComputedStyle(document.documentElement);
+const cssv=n=>root.getPropertyValue(n).trim()||'#888';
+
+/* ---------- 描述統計圖表 ---------- */
+const GRID={color:cssv('--rule2')}, TICK={font:{size:14},color:cssv('--ink3')};
+const charts={};
+Chart.defaults.elements.point.hoverRadius=5;
+Chart.defaults.elements.point.hoverBorderWidth=2;
+Chart.defaults.elements.point.hitRadius=6;
+function baseOpt(fmt,yfmt,yrs,step,unit){return{responsive:true,maintainAspectRatio:false,
+ interaction:{mode:'index',intersect:false},
+ plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,
+  filter:it=>it.parsed&&it.parsed.y!==null&&it.parsed.y!==undefined,
+  callbacks:{label:c=>c.dataset.label?`${c.dataset.label}：${fmt(c.parsed.y)}`:fmt(c.parsed.y)},
+  backgroundColor:cssv('--ink'),titleColor:cssv('--surf'),bodyColor:cssv('--surf'),padding:10,
+  titleFont:{size:14,weight:'600'},bodyFont:{size:14},boxPadding:4}},
+ scales:{y:{beginAtZero:true,ticks:{...TICK,callback:yfmt},grid:GRID,border:{display:false},
+   title:{display:!!unit,text:unit,font:{size:13,weight:'600'},color:cssv('--ink3')}},
+ x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrs[i]%step===0?yrs[i]:''},grid:{display:false},border:{color:cssv('--rule')}}},animation:false}}
+function mk(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),cfg)}
+
+(function(){
+ const yrs=HIST.map(d=>d.y);
+ mk('c_ob',{type:'bar',data:{labels:yrs,datasets:[{data:yrs.map(y=>H[y].ob/1e4),
+  backgroundColor:cssv('--hist'),borderRadius:0,barPercentage:.85}]},
+  options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),yrs,5,'萬人次')});
+ mk('c_rate',{type:'line',data:{labels:yrs,datasets:[{data:yrs.map(y=>H[y].rate),
+  borderColor:cssv('--hist'),borderWidth:2.4,pointRadius:0,tension:.2}]},
+  options:baseOpt(v=>v.toFixed(1)+'%',v=>v.toFixed(0),yrs,5,'%')});
+ mk('c_gdp',{type:'line',data:{labels:yrs,datasets:[{data:yrs.map(y=>H[y].pc),
+  borderColor:cssv('--hist'),borderWidth:2.4,pointRadius:0,tension:.2}]},
+  options:baseOpt(v=>Math.round(v).toLocaleString()+' 元',v=>(v/10000).toFixed(0)+'萬',yrs,5,'元（新臺幣，實質）')});
+ const py=[...yrs];for(let y=2026;y<=2050;y++)py.push(y);
+ mk('c_pop',{type:'line',data:{labels:py,datasets:[
+  {label:'實際',data:py.map(y=>H[y]?H[y].pop:null),borderColor:cssv('--hist'),borderWidth:2.4,pointRadius:0,tension:.2},
+  {label:'高推估',data:py.map(y=>POP.H[y]||(y===2025?H[2025].pop:null)),borderColor:cssv('--aggr'),borderWidth:2,borderDash:[5,4],pointRadius:0,tension:.2},
+  {label:'中推估',data:py.map(y=>POP.M[y]||(y===2025?H[2025].pop:null)),borderColor:cssv('--base'),borderWidth:2,borderDash:[5,4],pointRadius:0,tension:.2},
+  {label:'低推估',data:py.map(y=>POP.L[y]||(y===2025?H[2025].pop:null)),borderColor:cssv('--consv'),borderWidth:2,borderDash:[5,4],pointRadius:0,tension:.2}
+ ]},options:baseOpt(v=>Math.round(v).toLocaleString()+' 人',v=>(v/1e4).toFixed(0)+'萬',py,5,'人（萬人）')});
+})();
+
+/* ---------- 寬格式原始資料表 ---------- */
+(function(){
+ const yrs=HIST.map(d=>d.y);
+ let h='<thead><tr><th>指標</th>'+yrs.map(y=>`<th>${y}</th>`).join('')+'</tr></thead><tbody>';
+ const rows=[
+  ['實質GDP（十億元）',y=>H[y].gdp.toLocaleString()],
+  ['總人口（人）',y=>H[y].pop.toLocaleString()],
+  ['人均GDP（實質，元）',y=>H[y].pc.toLocaleString()],
+  ['國人出國人次',y=>H[y].ob.toLocaleString()],
+  ['出國率（%）',y=>H[y].rate.toFixed(2)]
+ ];
+ rows.forEach(([lbl,f])=>{h+=`<tr><td>${lbl}</td>`+yrs.map(y=>`<td>${f(y)}</td>`).join('')+'</tr>'});
+ document.getElementById('t_wide').innerHTML=h+'</tbody>';
+})();
+
+/* ---------- 情境卡（模型說明與設定）---------- */
+function renderSummaryKPI(){
+ const ob19=H[2019].ob, r19=H[2019].rate;
+ const obG=(BASE.ob/ob19-1)*100, rG=(BASE.rate/r19-1)*100;
+ document.getElementById('statKpi').innerHTML=`
+  <div class="kpi" style="--c:var(--hist)">
+   <div class="kn">國人出國人次（2025年）</div>
+   <div class="kv">${Math.round(BASE.ob/1e4).toLocaleString()}<span class="ku">萬人次</span></div>
+   <div class="ks">較2019年（${(ob19/1e4).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1})}萬）成長 ${obG.toFixed(1)}%</div></div>
+  <div class="kpi" style="--c:var(--hist)">
+   <div class="kn">出國率（2025年）</div>
+   <div class="kv">${BASE.rate.toFixed(1)}<span class="ku">%</span></div>
+   <div class="ks">較2019年（${r19.toFixed(1)}%）成長 ${rG.toFixed(1)}%（+${(BASE.rate-r19).toFixed(1)}個百分點）</div></div>`;
+}
+
+function renderScenCards(){
+ document.getElementById('scenCards').innerHTML=S.map(s=>{
+  const est=estimate(s.win,EX);
+  const winLabel=WINS.find(w=>w[0]===s.win)[1];
+  return `
+  <div class="scen" style="--c:var(${CVAR[s.id]})">
+   <h3>${s.name}情境</h3>
+   <ul class="scenlist">
+    <li><b>彈性估計區間</b><span>${winLabel}（e ≈ ${est.e.toFixed(2)}）</span></li>
+    <li><b>GDP終端成長率</b><span>${s.gT}%</span></li>
+    <li><b>人口推估情境</b><span>${PSN[s.pop]}</span></li>
+    <li><b>出國率上限 R<sub>max</sub></b><span>${s.rmax}%（約每人每年${(s.rmax/100).toFixed(1)}次）</span></li>
+   </ul>
+  </div>`;}).join('');
+}
+
+function renderScenSet(){
+ document.getElementById('scenSet').innerHTML=S.map((s,i)=>{
+  const est=estimate(s.win,EX);
+  return `
+  <div class="setcol" style="--c:var(${CVAR[s.id]})">
+   <h4>${s.name}</h4>
+   <div class="fld"><label for="w${i}">彈性估計區間</label>
+    <select id="w${i}" data-i="${i}" class="ip-win">${WINS.map(w=>`<option value="${w[0]}"${w[0]===s.win?' selected':''}>${w[1]}</option>`).join('')}</select>
+    <div class="evalline" id="eval${i}">e = ${est.e.toFixed(3)}（R² = ${est.r2.toFixed(3)}，n = ${est.n}）</div></div>
+   <div class="fld"><label for="g${i}">2032年後GDP終端成長率（%）</label>
+    <input type="number" id="g${i}" data-i="${i}" class="ip-g" value="${s.gT}" step="0.1" min="-2" max="10"></div>
+   <div class="fld"><label for="r${i}">出國率上限 R<sub>max</sub>（%）</label>
+    <input type="number" id="r${i}" data-i="${i}" class="ip-r" value="${s.rmax}" step="5" min="80" max="600"></div>
+   <div class="fld"><label for="p${i}">人口推估情境</label>
+    <select id="p${i}" data-i="${i}" class="ip-pop">${Object.entries(PSN).map(([k,v])=>`<option value="${k}"${k===s.pop?' selected':''}>${v}</option>`).join('')}</select></div>
+  </div>`;}).join('');
+ document.querySelectorAll('.ip-win').forEach(el=>el.onchange=e=>{
+  const i=+e.target.dataset.i;
+  S[i].win=+e.target.value;
+  const est=estimate(S[i].win,EX);
+  document.getElementById('eval'+i).textContent=`e = ${est.e.toFixed(3)}（R² = ${est.r2.toFixed(3)}，n = ${est.n}）`;
+  update();
+ });
+ document.querySelectorAll('.ip-g').forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){S[+e.target.dataset.i].gT=v;update()}});
+ document.querySelectorAll('.ip-r').forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){S[+e.target.dataset.i].rmax=v;update()}});
+ document.querySelectorAll('.ip-pop').forEach(el=>el.onchange=e=>{S[+e.target.dataset.i].pop=e.target.value;update()});
+}
+
+/* ---------- 預測結果 ---------- */
+function update(){
+ const res=S.map(s=>{const est=estimate(s.win,EX);return {...s,est,rows:project(est.e,s.gT,GMODE,s.pop,END,s.rmax)}});
+
+ renderScenCards();
+
+ document.getElementById('kpiGrid').innerHTML=res.map(r=>{
+  const last=r.rows[r.rows.length-1],c=cagr(BASE.ob,last.ob,END-2025);
+  return `<div class="kpi" style="--c:var(${CVAR[r.id]})">
+   <div class="kn">${r.name}情境　${END}年</div>
+   <div class="kv">${(last.ob/1e4).toLocaleString(undefined,{maximumFractionDigits:0})}<span class="ku">萬人次</span></div>
+   <div class="ks">出國率 ${last.rate.toFixed(1)}%　自2025年起年均成長 ${c.toFixed(2)}%</div></div>`}).join('');
+
+ const ord=res.map(r=>r.rows[r.rows.length-1].ob);
+ const warn=document.getElementById('ordWarn');
+ if(ord[2]<ord[1]||ord[1]<ord[0]){
+  warn.style.display='';
+  warn.innerHTML=`<b>情境順序異常。</b>${END}年預測值未依保守→基準→積極遞增（目前為 ${ord.map(v=>(v/1e4).toFixed(0)+'萬').join(' → ')}）。建議檢查R<sub>max</sub>與人口情境是否維持保守最低、積極最高的方向。`;
+ } else warn.style.display='none';
+
+ const yrs=[...HIST.map(d=>d.y),...res[0].rows.map(r=>r.y)];
+ const ds=[{label:'實際',data:yrs.map(y=>{const d=H[y];return d?d.ob/1e4:null}),
+  borderColor:cssv('--hist'),borderWidth:2.6,pointRadius:0,tension:.2,order:9}];
+ res.forEach(r=>ds.push({label:r.name,
+  data:yrs.map(y=>{const d=r.rows.find(v=>v.y===y);return d?d.ob/1e4:(y===2025?BASE.ob/1e4:null)}),
+  borderColor:cssv(CVAR[r.id]),borderWidth:3,pointRadius:0,tension:.2,order:1}));
+ mk('c_main',{type:'line',data:{labels:yrs,datasets:ds},options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬',v=>v.toLocaleString(),yrs,5),
+  scales:{y:{beginAtZero:true,ticks:{...TICK,callback:v=>v.toLocaleString()},grid:GRID,border:{display:false},
+    title:{display:true,text:'萬人次',font:{size:13,weight:'600'},color:cssv('--ink3')}},
+  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>yrs[i]%5===0?yrs[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+ document.getElementById('lg-main').innerHTML=`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>實際值</div>`
+  +res.map(r=>`<div class="lg"><i style="border-color:var(${CVAR[r.id]})"></i>${r.name}</div>`).join('');
+
+ let t='<thead><tr><th>年份</th>'+res.map(r=>`<th>${r.name}（萬人次）</th>`).join('')+'</tr></thead><tbody>';
+ t+=`<tr><td>2025 實際</td>`+res.map(()=>`<td>${(BASE.ob/1e4).toFixed(0)}</td>`).join('')+'</tr>';
+ res[0].rows.forEach((_,i)=>{const y=res[0].rows[i].y; if(y%5!==0&&y!==END)return;
+  t+=`<tr><td>${y}</td>`+res.map(r=>`<td>${(r.rows[i].ob/1e4).toFixed(0)}</td>`).join('')+'</tr>'});
+ document.getElementById('t_year').innerHTML=t+'</tbody>';
+}
+
+/* ---------- 頁籤切換（先只有出國可點）---------- */
+document.querySelectorAll('.tab').forEach(b=>{
+ if(b.disabled)return;
+ b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-selected','false')});
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');b.setAttribute('aria-selected','true');
+  document.getElementById('panel-'+b.dataset.t).classList.add('on');
+ };
+});
+
+renderSummaryKPI();
+renderScenSet();
+update();
+const D = {"years":[2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025],"fyears":[2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040,2041,2042,2043,2044,2045,2046,2047,2048,2049,2050],"markets":[{"name":"日本","group":"G1","defaultMode":1,"dev":"dev","inb":[912881,973895,993221,654154,882775,1121774,1158260,1163203,1083621,995380,1077897,1290346,1423719,1418087,1613649,1610682,1876680,1873971,1933766,2119080,267855,10039,87595,902941,1263834,1421194],"hasPop":true,"pop":[127027789,127260148,127484598,127671252,127815774,127913330,127997248,128087682,128155990,128192470,128185275,128096432,127928285,127723646,127486604,127275872,127159951,127064690,126913432,126699424,126304543,125679338,124997578,124370946,123753041,123103479],"popF":[123103479,122427731,121732340,121024348,120308089,119584122,118852085,118114140,117372474,116626751,115876149,115125566,114377401,113633614,112894532,112158304,111422443,110692358,109972381,109259528,108551994,107850580,107157970,106474329,105796844,105123168],"hasGdp":true,"gdp":[39945.1,39964.0,39913.8,40390.4,41211.6,41967.5,42618.4,43351.2,42867.3,40367.5,42022.9,41861.1,42644.5,43571.0,44039.5,44882.3,45204.9,46016.4,46492.2,46449.6,44591.4,46312.1,47089.9,47650.4,47762.0,48566.9],"gdpF":[48566.9,49169.1,49742.3,50333.6,50936.4,51557.2,52193.2],"gdpCagr":1.207,"hasOut":true,"out":[17818590,16215657,16522804,13296330,16831112,17403565,17534565,17294935,15987250,15445684,16637224,16994200,18490657,17472748,16903388,16213789,17116420,17889292,18954031,20080669,3174219,512244,2771770,9624158,13007282,14731615],"conf1":3,"conf1note":"官方 1973–2025，53 年連續","elast":0.2,"elastR2":0.022,"logiGrid":[[1.05,10.2287,-0.234],[1.1,30.5707,0.051],[1.2,3.7814,0.044],[1.3,1.7366,0.037],[1.5,0.9258,0.034],[1.75,0.6454,0.033],[2.0,0.5258,0.033],[2.5,0.4175,0.032],[3.0,0.3671,0.032]],"out25":0.1197,"seg":1.47},{"name":"韓國","group":"G1","defaultMode":1,"dev":"dev","inb":[83382,85489,83402,92630,147617,182180,195911,225172,251377,166878,216096,241532,257494,350005,524083,655818,881574,1051404,1013907,1239129,178705,3273,51692,737844,990878,993952],"hasPop":true,"pop":[46766661,47043468,47299120,47514160,47697076,47851644,48006518,48178118,48356493,48546686,48769332,49127644,49599580,50071164,50539056,50983912,51297839,51486270,51640894,51767846,51858482,51848398,51782512,51748739,51717590,51667030],"popF":[51667030,51600388,51518845,51423430,51314016,51188584,51048174,50891289,50714304,50516809,50300733,50066544,49813426,49541158,49251889,48948686,48630433,48299744,47959040,47603366,47232956,46850898,46452061,46033794,45597294,45143134],"hasGdp":true,"gdp":[26486.9,27526.7,29487.4,30237.0,31678.5,32989.1,34537.6,36371.0,37180.3,37292.7,39698.1,40846.9,41667.9,42843.9,43944.2,44989.7,46232.7,47685.8,48987.5,49946.9,49528.9,51880.4,53395.5,54198.7,55243.6,55871.7],"gdpF":[55871.7,56989.4,58290.0,59629.8,60898.5,62130.1,63413.9],"gdpCagr":2.133,"hasOut":true,"out":[5508242,6084476,7123407,7086133,8825585,10080143,11609879,13324977,11996094,9494111,12488364,12693733,13736976,14846485,16080684,19310430,22383190,26496447,28695983,28714247,4276006,1222541,6554031,22715841,28686435,29550177],"conf1":3,"conf1note":"官方 1975–2025，51 年連續","elast":2.132,"elastR2":0.958,"logiGrid":[[1.05,4.5732,0.885],[1.1,4.4194,0.893],[1.2,4.154,0.906],[1.3,3.9363,0.914],[1.5,3.6084,0.924],[1.75,3.3317,0.93],[2.0,3.143,0.934],[2.5,2.9055,0.937],[3.0,2.7631,0.938]],"out25":0.5719,"seg":10.68},{"name":"香港","group":"G1","defaultMode":2,"dev":"dev","inb":[361216,434395,455965,322939,416295,432426,430574,491073,574275,672782,734913,757935,942473,1092449,1239619,1357166,1455221,1515764,1490253,1570612,159874,9590,30999,1062588,1192462,1178021],"hasPop":true,"pop":[6704664,6774238,6821408,6858906,6888164,6908486,6931090,6971345,7020688,7064466,7101617,7142970,7201061,7264335,7319500,7366410,7408010,7444892,7471194,7485813,7490236,7484602,7465915,7442734,7414910,7396076],"popF":[7396076,7378602,7355040,7324901,7286618,7252647,7211724,7172171,7135054,7099984,7051626,6993042,6953127,6907320,6861297,6816568,6754838,6687105,6622824,6564104,6498690,6427938,6342740,6255882,6174432,6090619],"hasGdp":true,"gdp":[39572.5,39683.3,40367.7,41365.3,44742.5,47766.4,50633.2,53641.6,54582.5,52992.9,56132.5,58360.0,58843.3,60332.7,61640.3,62621.7,63390.9,65471.6,66679.9,65278.8,61776.9,65988.2,62951.6,64457.8,66393.4,68615.7],"gdpF":[68615.7,69934.1,71187.2,72396.1,73598.7,74765.8,75967.4],"gdpCagr":1.711,"hasOut":true,"out":[58901000,61096000,64540000,60936000,68903000,72300000,75812000,80682000,81911000,81958000,84442000,84816000,85276000,84380000,84519000,89082000,91758000,91304000,92214000,94715000,8261000,905000,2181000,72203361,104702629,117541995],"conf1":2,"conf1note":"官方 1998–2025，但陸路北上主導；分母 2019→2025 膨脹 25.6%","elast":0.812,"elastR2":0.892,"logiGrid":[[1.05,2.3024,0.856],[1.1,2.122,0.858],[1.2,1.8666,0.859],[1.3,1.6943,0.86],[1.5,1.4764,0.861],[1.75,1.319,0.861],[2.0,1.2214,0.862],[2.5,1.1068,0.862],[3.0,1.0416,0.862]],"out25":15.8925,"seg":0.76},{"name":"澳門","group":"G1","defaultMode":2,"dev":"dev","inb":[null,null,null,null,null,null,null,null,33593,41539,49131,53595,66322,77598,98756,123069,139326,149918,146287,158643,15270,1166,1612,94556,112254,104823],"hasPop":true,"pop":[437309,445125,456014,469053,482200,495410,508746,522275,535930,549483,562806,575632,587446,598743,610304,622179,634312,646554,658772,670974,683066,694402,704356,713912,720262,722007],"popF":[722007,723188,724072,724248,725427,726724,727318,727004,726350,725552,723756,721014,717562,713752,710030,706891,703310,699236,695298,691784,688798,685274,680716,676228,672520,668860],"hasGdp":true,"gdp":[null,56859.6,61330.3,67526.0,82563.6,85245.7,91174.3,99591.6,100889.1,103537.5,127136.1,153238.7,160260.9,170087.4,159103.3,122451.7,121951.0,132364.0,137764.8,131962.0,59863.9,73299.6,60322.5,104064.1,111482.7,114883.2],"gdpF":[114883.2,116615.1,118982.9,121505.4,124355.3,127278.4,128995.0],"gdpCagr":1.95,"hasOut":true,"conf1":2,"conf1note":"澳門統計暨普查局「經空路出境」2011–2024，2025 年為 1–9 月年化推估；2011／2015／2018／2025 為推估值。赴臺僅能搭機，空路出境是概念上正確的分母（空路僅占澳門總出境的 1.1–2.0%，總出境為陸海通勤，不可用）。","out":[null,null,null,null,null,null,null,null,null,null,null,210500,258753,304818,350026,414700,476056,522437,567700,615432,77520,60528,24787,356329,464523,388513],"outEstYears":[2011,2015,2018,2025],"out25":0.5381,"outUnit":"air","elast":-0.672,"elastR2":0.131,"logiGrid":[[1.05,15.0024,-0.19],[1.1,215.3545,-0.051],[1.2,16.5494,-0.001],[1.3,0.0001,-0.0],[1.5,0.0,-0.0],[1.75,0.0,-0.0],[2.0,-1.6116,0.118],[2.5,-1.1047,0.106],[3.0,-0.914,0.102]],"seg":12.16},{"name":"新加坡","group":"G1","defaultMode":1,"dev":"dev","inb":[94548,98501,110486,78633,116209,165456,183464,203429,204051,192266,237996,295854,323766,361318,371161,387682,401547,419429,420722,454621,49729,2387,69294,461860,443896,440123],"hasPop":true,"pop":[4035245,4116166,4146892,4138245,4172768,4268364,4407058,4596515,4806741,4968568,5077014,5182239,5293340,5385588,5457900,5525340,5577930,5604078,5634370,5669562,5620150,5546290,5649884,5789090,5832387,5870750],"popF":[5870750,5905748,5939546,5973348,6004088,6031378,6058404,6085224,6111153,6134781,6153232,6166850,6178212,6188054,6193922,6194782,6191329,6185384,6178282,6168175,6156188,6143610,6128164,6113208,6098708,6081692],"hasGdp":true,"gdp":[68904.1,66352.1,68328.9,72497.9,78712.5,82547.5,87210.0,91198.2,88083.3,85575.8,96280.0,100153.7,102061.1,105259.7,107990.9,109894.0,112719.9,117493.0,120668.9,120678.3,116684.2,133990.2,134828.0,130296.8,134548.8,140367.9],"gdpF":[140367.9,144256.5,146939.9,149394.2,152029.9,154634.6,157220.1],"gdpCagr":1.908,"hasOut":true,"out":[4443542,4363077,4398840,4221464,5164906,5159403,5533357,6024130,6828362,6960724,7342276,7752926,8047808,8647066,8902705,9125331,9474205,9888852,10378329,10710717,1543007,833107,5154428,9388580,10336102,10674254],"conf1":3,"conf1note":"官方 1997–2025（含赴柔佛短程，占比穩定）","elast":0.887,"elastR2":0.952,"logiGrid":[[1.05,3.3314,0.928],[1.1,2.9938,0.939],[1.2,2.5204,0.949],[1.3,2.2108,0.953],[1.5,1.8372,0.954],[1.75,1.5825,0.953],[2.0,1.4316,0.951],[2.5,1.2616,0.949],[3.0,1.1685,0.947]],"out25":1.8182,"seg":2.94},{"name":"泰國","group":"G2","defaultMode":1,"dev":"emerging","inb":[133052,118312,110592,98345,102935,93486,95581,89875,84234,77147,92708,102673,97524,104024,104308,123614,194300,291376,318611,413182,63508,7553,74395,394243,398980,409861],"hasPop":true,"pop":[63007815,63651142,64266436,64868166,65452047,66017420,66567687,67102394,67619830,68121080,68579448,69007208,69436098,69845114,70216366,70540796,70859842,71160187,71376078,71522271,71641484,71727332,71735329,71702435,71668011,71619863],"popF":[71619863,71559614,71488156,71406994,71316192,71215022,71104021,70982289,70847953,70701654,70540884,70366494,70180036,69979036,69763933,69535002,69288472,69025350,68748083,68456530,68150152,67827311,67489358,67136738,66767317,66382735],"hasGdp":true,"gdp":[11624.5,11903.3,12514.3,13289.5,13999.3,14460.7,15053.6,15745.3,15894.4,15668.5,16733.2,16769.1,17872.6,18245.5,18327.7,18815.1,19373.8,20098.0,20883.4,21281.4,19951.4,20237.0,20778.0,21253.2,21889.5,22432.7],"gdpF":[22432.7,22788.4,23290.3,23851.2,24468.2,25114.7,25782.8],"gdpCagr":2.347,"hasOut":true,"out":[1909000,2011000,2250000,2152000,2709000,3047000,3382000,4018000,3908000,4653000,5451000,5397000,5721000,5970000,6444000,6794000,8204000,8963000,9966000,10446000,1706000,33000,4043591,8484718,11720634,13055268],"conf1":3,"conf1note":"官方 1995–2025","elast":2.761,"elastR2":0.985,"logiGrid":[[1.05,5.3109,0.938],[1.1,5.1502,0.944],[1.2,4.8811,0.953],[1.3,4.6667,0.959],[1.5,4.3501,0.968],[1.75,4.085,0.974],[2.0,3.9034,0.977],[2.5,3.6717,0.981],[3.0,3.5306,0.983]],"out25":0.1823,"seg":7.94},{"name":"印尼","group":"G2","defaultMode":1,"dev":"emerging","inb":[106714,89431,87070,36972,42575,86501,88261,92256,105999,101763,119050,149440,156100,163222,173150,167640,178117,178174,198299,215916,49527,9601,72089,190335,211318,222141],"hasPop":true,"pop":[216077790,219097902,222088495,225048008,227926649,230871650,233951652,237062338,240157904,243220028,246305322,249470032,252698525,255852466,258877399,261799249,264627418,267346658,269951846,272489381,274814866,276758053,278830528,281190066,283487930,285721236],"popF":[285721236,287886782,289986522,292016778,293978109,295876648,297719748,299510662,301250984,302938573,304566622,306135098,307646418,309096448,310481120,311797396,313041661,314211282,315304312,316318416,317249613,318096574,318862020,319554652,320173250,320712950],"hasGdp":true,"gdp":[6246.8,6383.4,6576.8,6794.3,7035.8,7331.7,7626.3,7996.1,8470.4,8743.9,9170.8,9561.6,9996.3,10408.0,10784.0,11176.1,11588.1,12042.4,12531.0,13024.4,12600.0,12947.9,13484.7,14014.2,14567.5,15159.0],"gdpF":[15159.0,15756.6,16402.3,17096.8,17829.7,18607.6,19427.6],"gdpCagr":4.222,"hasOut":true,"out":[2205000,2505000,3231000,3478000,3941000,4106000,4967000,5158000,5486000,5053000,6235000,6750000,7454000,8025000,8074000,8176000,8340000,8856000,9468000,11689000,null,null,3540542,7518895,8946794,9165894],"conf1":3,"conf1note":"官方 2000–2025","elast":1.282,"elastR2":0.839,"logiGrid":[[1.05,5.5898,0.897],[1.1,5.0017,0.909],[1.2,4.0796,0.911],[1.3,3.4376,0.901],[1.5,2.6763,0.879],[1.75,2.1938,0.859],[2.0,1.9268,0.845],[2.5,1.6434,0.829],[3.0,1.4958,0.82]],"out25":0.0321,"seg":4.43},{"name":"菲律賓","group":"G2","defaultMode":2,"dev":"emerging","inb":[80690,70374,76103,76393,83391,88228,76223,80102,82672,72001,81958,95729,98847,93605,127300,129087,162410,262792,376955,495703,72729,6301,58214,340539,455402,608544],"hasPop":true,"pop":[79625397,81401488,83068888,84731835,86394504,88015962,89508986,91075184,92699094,94384250,96337125,98248614,100175512,102076336,103767130,105312992,106735719,108119694,109465286,110804684,112081264,113100950,113964338,114891199,115843670,116786962],"popF":[116786962,117724472,118656414,119583982,120502130,121408895,122301597,123180330,124049028,124904114,125740972,126558226,127352596,128118527,128850040,129546660,130209802,130836996,131427393,131979664,132492032,132962000,133385286,133759430,134089000,134373439],"hasGdp":true,"gdp":[4905.3,4948.1,5025.8,5175.8,5407.5,5566.8,5753.3,6017.5,6168.0,6149.3,6488.4,6627.7,6970.7,7324.1,7669.8,8033.7,8465.4,8909.6,9332.2,9761.9,8678.3,9100.9,9714.9,10162.2,10647.9,10999.8],"gdpF":[10999.8,11326.5,11854.5,12442.6,13057.3,13695.9,14365.7],"gdpCagr":4.55,"hasOut":true,"out":[1670000,1787000,1969000,1803000,1920000,2144000,2745000,3066000,3355000,3188000,null,null,null,null,3488000,5115000,5703000,null,null,null,null,null,null,null,null,null],"estRate":{"2010":2.26,"2011":2.39,"2012":2.26,"2013":1.98,"2014":2.49,"2015":2.53,"2016":2.85,"2023":4.86,"2024":5.46},"conf1":1,"conf1note":"PSA 1995–2016 官方 ＋ 移民局 2023–24 聲明，缺 2017–2022","elast":1.263,"elastR2":0.764,"logiGrid":[[1.05,2.3758,0.79],[1.1,2.2956,0.792],[1.2,2.1668,0.795],[1.3,2.0681,0.798],[1.5,1.927,0.801],[1.75,1.8119,0.804],[2.0,1.734,0.805],[2.5,1.6355,0.807],[3.0,1.5757,0.808]],"out25":0.0721,"estOut":{"year":2024,"rate":0.0721,"value":8348283},"newsOut":{"2010":3628700,"2011":4010000,"2012":4380000,"2013":4720000,"2014":5110000,"2015":5110000,"2016":5702816,"2023":7000000,"2024":8348283},"segEst":5.55,"seg":null},{"name":"越南","group":"G2","defaultMode":2,"dev":"emerging","inb":[null,null,null,null,null,null,null,null,75921,59534,71372,94550,87946,116627,135121,144602,195069,381834,488673,404361,110610,24769,134529,381988,369622,425213],"hasPop":true,"pop":[77154010,77969361,78772224,79563777,80338972,81088313,82167896,83633376,85175788,86460018,87455152,88468314,89510356,90573104,91679578,92823254,94000116,95176977,96237320,97173776,98079191,98935098,99680655,100352192,100987686,101598527],"popF":[101598527,102177431,102727396,103255744,103761156,104254902,104737911,105204400,105656310,106097520,106530676,106945842,107346042,107732021,108097656,108437634,108752199,109040310,109292561,109506264,109685398,109827658,109930239,109994024,110018019,110008908],"hasGdp":true,"gdp":[4142.0,4368.5,4616.7,4909.4,5243.3,5587.3,5921.7,6284.3,6576.7,6864.1,7232.4,7705.6,8042.9,8399.7,8843.6,9359.9,9880.4,10455.9,11118.4,11711.7,11911.7,12101.4,13008.3,13551.8,14352.0,15351.4],"gdpF":[15351.4,16317.3,17296.7,18258.4,19167.2,20091.3,21079.0],"gdpCagr":5.427,"hasOut":false,"estRate":{"2023":7.64,"2024":6.97},"conf1":1,"conf1note":"越南統計總局 2024 年單一年度（530 萬人次）","estOut":{"year":2024,"rate":0.0525,"value":5300000},"out25":0.0525,"logiGrid":null,"elast":null,"elastR2":null,"newsOut":{"2023":5000000,"2024":5300000}},{"name":"馬來西亞","group":"G2","defaultMode":2,"dev":"emerging","inb":[57379,57129,66020,66738,92551,107258,115124,140754,154278,165162,282312,304267,336879,390939,432976,425763,468314,520204,519806,532198,71993,5160,58238,435793,424846,378463],"hasPop":true,"pop":[22967816,23526538,24102476,24679602,25256772,25836072,26417909,26998388,27570059,28124778,28655776,29162039,29662831,30174264,30696136,31232798,31789686,32355644,32910967,33440596,33889558,34282398,34695493,35126298,35557674,35977838],"popF":[35977838,36385114,36785087,37182770,37574288,37961718,38347786,38728384,39097874,39457845,39814825,40166898,40512282,40853312,41185886,41509644,41828592,42144466,42455953,42754136,43038204,43313748,43580459,43831576,44065540,44289772],"hasGdp":true,"gdp":[18175.9,17794.0,18295.4,18901.3,19727.4,20261.8,21110.6,22218.0,22869.7,22136.9,23381.6,24218.2,25156.1,25723.4,26829.2,27741.1,28565.7,29858.9,30957.2,32183.6,30498.7,31385.0,34140.0,34912.2,36254.6,37688.3],"gdpF":[37688.3,39019.8,40259.7,41556.0,42912.0,44331.3,45817.1],"gdpCagr":3.309,"hasOut":false,"estRate":{"2019":3.64,"2020":2.66,"2021":0.58,"2022":1.04,"2023":3.68,"2024":2.96,"2025":2.81},"conf1":1,"conf1note":"Euromonitor 2019–2025，市調估算非官方；2010–11 來源不一致已剔除","estOut":{"year":2025,"rate":0.3738,"value":13450000},"out25":0.3738,"logiGrid":null,"elast":null,"elastR2":null,"newsOut":{"2019":14610000,"2020":2710000,"2021":890000,"2022":5620000,"2023":11850000,"2024":14360000,"2025":13450000}},{"name":"中國大陸","group":"G3","defaultMode":1,"dev":"emerging","inb":[null,null,null,null,null,null,null,null,277492,832931,1401772,1520178,2295242,2597796,3651898,3714073,3096513,2317683,2241078,2242309,92163,12574,23083,206508,363441,403211],"hasPop":true,"pop":[1269581176,1278725062,1286866838,1294517326,1302100316,1310027136,1318054036,1325813582,1333821016,1342522716,1351561514,1360250664,1369520864,1379008040,1387951972,1396134174,1404052632,1412354727,1419008956,1423520358,1426106093,1426437267,1425179569,1422584932,1419321278,1416096094],"popF":[1416096094,1412914088,1409679406,1406136744,1402282752,1398153832,1393748670,1389060032,1384096521,1378876934,1373427531,1367742784,1361830064,1355722707,1349394718,1342816656,1335990232,1328909238,1321590798,1314015986,1306113788,1297817582,1289120426,1279992585,1270381145,1260289094],"hasGdp":true,"gdp":[4049.7,4356.2,4727.0,5174.3,5664.3,6275.0,7032.5,7986.5,8711.9,9488.4,10442.8,11359.8,12160.6,13028.5,13910.9,14814.0,15714.9,16704.3,17766.0,18781.1,19192.1,20827.1,21488.2,22677.0,23835.0,25073.9],"gdpF":[25073.9,26239.2,27360.1,28526.2,29653.1,30736.3,31848.1],"gdpCagr":4.066,"hasOut":true,"out":[10473000,12133000,16602000,20222000,28853000,31026000,34524000,40954000,45844000,47656000,57386000,70250000,83182000,98185000,116593000,127860000,135130000,143035000,161993400,169205400,20334000,null,null,100965000,145885600,167920000],"conf1":3,"conf1note":"官方 1995–2025","elast":1.686,"elastR2":0.967,"logiGrid":[[1.05,3.2569,0.969],[1.1,3.0639,0.971],[1.2,2.7451,0.972],[1.3,2.5033,0.97],[1.5,2.1772,0.964],[1.75,1.9357,0.957],[2.0,1.7862,0.951],[2.5,1.6125,0.942],[3.0,1.515,0.937]],"out25":0.1186,"seg":11.77},{"name":"美國","group":"G4","defaultMode":1,"dev":"dev","inb":[359119,347699,374595,272459,381056,390153,390352,391917,382426,360899,385783,405182,407378,411694,445006,467732,513901,543393,556912,582277,80179,11937,90537,514515,628778,680331],"hasPop":true,"pop":[281484130,284279638,287084338,289908100,292786254,295716664,298730210,301844226,304970332,308023454,311062790,314105078,317115354,320110759,323115377,326126496,329179426,332204660,335056498,337790066,339436158,340161441,341534046,343477335,345426571,347275808],"popF":[347275808,349035494,350728355,352404086,354050268,355649881,357222716,358769974,360294008,361801811,363284716,364731660,366152370,367551456,368906818,370209316,371469478,372704772,373900678,375029246,376106472,377131728,378117767,379063744,379966906,380846910],"hasGdp":true,"gdp":[55019.7,54976.8,55367.5,56384.0,58023.7,59492.0,60572.8,61178.1,60681.9,58607.6,59728.0,60233.1,61176.1,62044.2,63153.2,64546.1,65253.9,66434.4,68040.6,69474.8,67462.1,71365.7,72773.1,74306.2,75701.5,76874.6],"gdpF":[76874.6,78419.6,79861.4,81319.7,82614.1,83814.1,85042.2],"gdpCagr":1.697,"hasOut":true,"out":[35371000,33625512,31365865,32516222,36497344,38372404,39758010,40798278,40259650,38844301,37354842,58496587,60722794,61569800,68176355,74191475,80226167,87703442,93038257,99744820,33499369,49096891,80846988,98627062,106376575,109261808],"conf1":3,"conf1note":"官方 1996–2025（含陸路赴加墨，占比穩定）","elast":3.063,"elastR2":0.829,"logiGrid":[[1.05,8.1846,0.824],[1.1,7.8264,0.836],[1.2,7.1844,0.851],[1.3,6.6501,0.859],[1.5,5.8624,0.865],[1.75,5.2341,0.867],[2.0,4.8296,0.867],[2.5,4.348,0.865],[3.0,4.0736,0.863]],"out25":0.3146,"breakYear":2011,"breakNote":"NTTO I-92 Grand Total 於 2011 年出現 +57% 跳升（3,735 萬→5,850 萬），來源標示未變，屬口徑變更。跨越此斷點的迴歸不可用。","seg":8.38},{"name":"加拿大","group":"G4","defaultMode":2,"dev":"dev","inb":[38348,42840,48542,34096,50234,54332,52627,55267,58011,57539,60657,65454,69503,71900,84449,86051,102811,110818,120182,128656,17832,1169,13210,87921,107036,110823],"hasPop":true,"pop":[30891803,31213577,31535578,31836482,32132678,32440173,32759171,33092171,33449085,33826370,34196898,34555452,34922516,35293432,35634264,35962234,36353343,36808496,37295005,37782934,38171902,38454057,38821259,39299104,39742430,40126723],"popF":[40126723,40467728,40782234,41085503,41376296,41655589,41928615,42191768,42438030,42676472,42905267,43124450,43343006,43555952,43759360,43951417,44137906,44321950,44501136,44675804,44850096,45016754,45173486,45329217,45476950,45621882],"hasGdp":true,"gdp":[47780.4,48167.3,49078.6,49500.3,50555.1,51686.3,52517.5,53073.0,53034.9,50902.1,51892.4,52991.3,53352.9,54020.1,55011.8,54923.6,54915.1,55896.2,56630.2,56872.1,53377.7,56218.1,57876.0,57435.6,56926.8,57245.4],"gdpF":[57245.4,58137.0,59205.3,59997.8,60627.4,61143.8,61718.1],"gdpCagr":1.262,"hasOut":true,"out":[47182000,43201000,39239000,39225000,41786000,44031000,46912000,50045000,51737000,47484000,55639000,61911000,65179000,65798000,63737000,55971000,52979000,54632000,56340000,43282000,14605000,4574000,25989000,38903000,42663000,37003000],"conf1":2,"conf1note":"官方 1995–2025，但陸路赴美主導（出國率 0.92 次/人）","elast":-0.806,"elastR2":0.191,"logiGrid":[[1.05,21.5744,-4.51],[1.1,20.9284,-3.772],[1.2,23.0792,-2.493],[1.3,22.296,-1.479],[1.5,15.6039,-0.24],[1.75,0.0001,-0.0],[2.0,0.0,-0.0],[2.5,0.0,-0.0],[3.0,-1.6913,0.191]],"out25":0.9222,"seg":-3.79},{"name":"歐洲地區","group":"G4","defaultMode":3,"dev":null,"inb":[159278,146769,146513,116919,162718,170523,167823,179193,190137,180529,189310,205387,211970,220543,250823,260911,288909,307969,330799,360519,56660,14169,62233,278588,320955,363545],"hasPop":true,"pop":[728163518,728237041,729125842,730375711,731245529,732045856,732683412,733895680,735548804,736935092,738144697,739358591,740458244,741470192,742640058,744236463,746002545,747428657,748564322,749503592,749523516,748612986,746964086,745602379,745083328,744398330],"popF":[744398330,743481855,742371544,741158002,739841694,738432926,736925945,735365736,733800464,732210120,730589974,728933572,727247860,725551713,723830388,722101037,720390376,718677845,716925448,715121309,713279204,711393716,709438376,707394926,705256324,703027046],"hasGdp":false,"hasOut":false,"conf1":0,"conf1note":"區域彙總，無對應國家"},{"name":"大洋洲地區","group":"G4","defaultMode":3,"dev":null,"inb":[37942,38205,40635,32229,50337,55634,51443,60991,67255,63129,68129,67686,73137,77045,85700,84596,91416,99655,113054,122840,20995,1295,14868,99601,120503,134972],"hasPop":true,"pop":[31352624,31846895,32365687,32894234,33418748,33955854,34540036,35189702,35890036,36593202,37253766,37889764,38550170,39233597,39918436,40614678,41346918,42093654,42815156,43504189,44078974,44558212,45049350,45562787,46088716,46609644],"popF":[46609644,47118994,47619142,48113153,48596699,49071522,49540450,50000979,50454616,50904057,51351255,51797065,52236632,52672624,53104814,53532011,53960539,54389549,54814906,55235476,55654839,56074222,56484704,56891405,57294585,57688178],"hasGdp":false,"hasOut":false,"conf1":0,"conf1note":"區域彙總，無對應國家"},{"name":"其他（自然成長法）","group":"G4","defaultMode":3,"dev":null,"inb":[186346,311324,360579,345437,387089,392775,444590,451237,110207,137283,195633,112597,106982,113061,93791,100867,115170,126953,145891,152907,23665,6736,33319,126933,194541,202606],"hasPop":true,"pop":[3186424555,3249347988,3312244833,3375286113,3439268662,3503517141,3568219706,3633245157,3698679234,3765233126,3832482996,3900282476,3968541702,4037112213,4105705581,4173934454,4241528276,4308321560,4374902140,4441467698,4507221280,4570167050,4634351786,4701880286,4769326594,4836642202],"popF":[4836642202,4903890660,4970999726,5037804326,5104366971,5170659994,5236643648,5302244907,5367403427,5432111398,5496351426,5560110972,5623265052,5685754684,5747641411,5808927612,5869509362,5929284168,5988271597,6046493266,6103890594,6160469348,6216201533,6271033619,6324994498,6378029490],"hasGdp":false,"hasOut":false,"conf1":0,"conf1note":"殘差類別，無對應國家"}],"tw":{"name":"臺灣","gdp":[31439.1,30820.0,32343.8,33585.2,35786.2,37578.0,39562.0,42121.4,42312.8,41481.0,45647.3,47196.0,48056.1,49127.8,51313.8,51936.4,52953.2,54819.0,56369.4,58056.8,60149.2,64702.0,66754.3,67029.7,70621.2,77081.4],"gdpF":[77081.4,81426.6,84208.3,86645.7,89084.2,91637.5,93990.6],"note":"臺灣為預測的目的地，不列入來源市場；此處僅供所得與出國行為的橫向比較。","pop":[22276672,22405568,22520776,22604550,22689122,22770383,22876527,22958360,23037031,23119772,23162123,23224912,23315822,23373517,23433753,23492074,23539816,23571227,23588932,23603121,23561236,23375314,23264640,23420442,23400220,23299132],"out":[7238391,7025975,7207865,5779569,7525766,7898321,8377086,8551638,7876677,7497195,8770823,8917352,9580142,10394418,11155298,12433262,13774159,14767580,15683424,16096135,2273862,357399,1480079,11322683,15958964,17870160],"popF":[23299132,23273147,23195160,23111886,23026002,22933157,22833312,22726577,22612894,22492493,22365303,22231082,22090240,21943123,21789273,21628119,21459743,21285123,21104490,20918211,20726501,20530005,20328324,20121945,19911391,19696831],"src":{"pop":"內政部戶籍人口（1946–2025）＋ 國發會人口推估中推估（2026 起）","out":"交通部觀光署　出國旅客按目的地統計（20 大目的地＋其他，合計即全國）","gdp":"IMF WEO　GDP per capita, constant prices, PPP international dollar, ICP 2021"},"rate":[0.3249,0.3136,0.3201,0.2557,0.3317,0.3469,0.3662,0.3725,0.3419,0.3243,0.3787,0.384,0.4109,0.4447,0.476,0.5293,0.5851,0.6265,0.6649,0.6819,0.0965,0.0153,0.0636,0.4835,0.682,0.767]}};
+const YRS = D.years, FY = D.fyears;              // 1995..2025 ; 2025..2050
+const M = D.markets, MI = {}; M.forEach((m,i)=>{m.i=i; MI[m.name]=m;});
+const TW = D.tw, TWC = '#14202B';
+const GC = {G1:'#1F5F91',G2:'#2E7D4F',G3:'#A63A26',G4:'#A38220'};
+const GN = {G1:'G1 亞太成熟飽和型',G2:'G2 亞太所得成長型',G3:'G3 政策影響型',G4:'G4 長距離穩定型'};
+const COL = {'中國大陸':'#A63A26','日本':'#123F63','韓國':'#1F5F91','香港':'#3A85B8','澳門':'#6FAAD1',
+ '新加坡':'#A3CBE3','泰國':'#1E5B37','印尼':'#2E7D4F','菲律賓':'#4CA06B','越南':'#7CBF92',
+ '馬來西亞':'#ADD9BB','美國':'#7A5F14','加拿大':'#A38220','歐洲地區':'#C4A542',
+ '大洋洲地區':'#DBC57C','其他（自然成長法）':'#EBDCAE'};
+const SHORT = n => n==='其他（自然成長法）'?'其他':n;
+const yi = y => YRS.indexOf(y);
+const fmt = (v,d=1) => v==null||isNaN(v)?'—':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const wan = v => v==null?'—':fmt(v/1e4,1);
+const pct = (v,d=1) => v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(d)+'%';
+const esc = s => String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ---------- derived series ---------- */
+function inbOf(m,y){const i=yi(y);return i<0?null:m.inb[i];}
+function popOf(m,y){if(!m.hasPop)return null;const i=yi(y);return i<0?null:m.pop[i];}
+function outOf(m,y){if(!m.hasOut)return null;const i=yi(y);return i<0?null:m.out[i];}
+function rateOf(m,y){const a=inbOf(m,y),b=outOf(m,y);return a&&b?a/b*100:null;}
+function outRateOf(m,y){const a=outOf(m,y),b=popOf(m,y);return a&&b?a/b:null;}
+function gdpOf(m,y){if(!m.hasGdp)return null;const i=yi(y);return i<0?null:m.gdp[i];}
+function cagr(a,b,n){return a>0&&b>0?(Math.pow(b/a,1/n)-1)*100:null;}
+
+/* ================= 預測引擎 ================= */
+const Y0=2025, Y1=2050, NF=Y1-Y0;              // 26 points 2025..2050
+const SCN=['base','A','B'], SCN_NAME={base:'基準情境',A:'積極情境',B:'保守情境'};
+const SCN_COL={base:'#77868D',A:'#0F6E68',B:'#B4442E'};
+
+/* IMF WEO 只到 2031 年；2032 年起以 10 年線性收斂至下列終端成長率。
+   敏感度：終端值由 1.2/2.5 改為 1.6/3.2，2050 年總量僅變動 +0.5%
+   （僅 5 個採飽和曲線法的市場受影響，且曲線接近天花板後對所得已不敏感），
+   故設為固定假設，不開放情境調整。 */
+const GDP_TERM={dev:1.2, em:2.5};
+function gdpSeries(m){                          // 實質人均GDP 2025..2050
+  if(!m.hasGdp) return null;
+  const out=[]; for(let y=Y0;y<=2031;y++) out.push(m.gdpF[y-Y0]);
+  const g0=m.gdpCagr/100, gT=(m.dev==='dev'?GDP_TERM.dev:GDP_TERM.em)/100;
+  for(let y=2032;y<=Y1;y++){
+    const k=Math.min(1,(y-2031)/10), g=g0+(gT-g0)*k;
+    out.push(out[out.length-1]*(1+g));
+  }
+  return out;
+}
+function interpB(grid,k){                       // logistic b for Rmax/R25 = k
+  if(!grid) return 3;
+  const g=grid.filter(r=>r[1]!=null); if(!g.length) return 3;
+  if(k<=g[0][0]) return g[0][1];
+  if(k>=g[g.length-1][0]) return g[g.length-1][1];
+  for(let i=0;i<g.length-1;i++){ if(k>=g[i][0]&&k<=g[i+1][0]){
+    const t=(k-g[i][0])/(g[i+1][0]-g[i][0]); return g[i][1]+(g[i+1][1]-g[i][1])*t; } }
+  return g[0][1];
+}
+function rampTo(v0,vT,yT){                      // 平滑過渡至目標年後持平（smoothstep，兩端斜率為零）
+  const a=[]; for(let y=Y0;y<=Y1;y++){
+    if(yT<=Y0){a.push(vT);continue;}
+    let t=Math.min(1,(y-Y0)/(yT-Y0));
+    t=t*t*(3-2*t);
+    a.push(v0+(vT-v0)*t);
+  } return a;
+}
+function outPath(m,p){                          // 出國率 2025..2050
+  const G=gdpSeries(m), b0=m.out25;
+  if(!b0) return null;
+  if(p.outMode==='logi'&&m.logiGrid&&G){
+    const Rm=Math.max(p.rmax/100,b0*1.001), k=Rm/b0, b=interpB(m.logiGrid,k);
+    const x0=Math.log(G[0])+Math.log(Rm/b0-1)/b;
+    return G.map(g=>Rm/(1+Math.exp(-b*(Math.log(g)-x0))));
+  }
+  return rampTo(b0,p.outTarget/100,p.outTargetYear);
+}
+/* 兩段成長率：2026–2035 用 g1、2036–2050 用 g2。
+   交界處以 2033–2038 的 smoothstep 銜接，避免 2035→2036 出現速率斷點
+   （與 outbound 模型的 G_ANCHOR 平滑同一類處理）。 */
+const GSMOOTH=[2033,2038];
+function growthPath(p){
+  const g1=(p.g1||0)/100, g2=(p.g2||0)/100, [s,e]=GSMOOTH, a=[];
+  for(let y=Y0+1;y<=Y1;y++){
+    if(y<=s){a.push(g1);continue;}
+    if(y>=e){a.push(g2);continue;}
+    let t=(y-s)/(e-s); t=t*t*(3-2*t);
+    a.push(g1+(g2-g1)*t);
+  }
+  return a;
+}
+function forecast(m,mode,p,shared){             // 回傳 2025..2050 來臺人數
+  const out=new Array(NF+1).fill(null);
+  if(mode===3){ return rampTo(inbOf(m,Y0), (p.n2050||0)*1e4, 2050); }
+  if(mode===2){ let v=inbOf(m,Y0); out[0]=v; const g=growthPath(p);
+    for(let i=1;i<=NF;i++){ v=v*(1+g[i-1]); out[i]=v; } return out; }
+  const popF=m.popF; if(!popF) return out;
+  const o=outPath(m,shared); if(!o) return out;   // 出國率為三情境共用
+  const r=rampTo(m.rate25,p.rate,p.rateYear);
+  for(let i=0;i<=NF;i++) out[i]=popF[i]*o[i]*r[i]/100;
+  return out;
+}
+
+/* ================= 模式可用性 ================= */
+const REC={'日本':1,'韓國':1,'新加坡':1,'泰國':1,'印尼':1,'美國':1,'中國大陸':3};
+function recMode(m){return REC[m.name]||2;}
+const DIRECT=['中國大陸'];
+function avail(m){
+  const a={1:m.conf1>0&&m.out25!=null&&m.hasPop&&m.hasGdp, 2:true, 3:DIRECT.includes(m.name)};
+  const why={1:'',2:'',3:''};
+  if(!a[1]) why[1]=m.conf1note||'無出國統計，無法計算來臺率';
+  if(!a[3]) why[3]='僅適用於來臺人數完全由政策決定的市場';
+  return {a,why};
+}
+function builders(m){                            // 出國率路徑產生方式
+  const b=[];
+  if(m.logiGrid) b.push({v:'logi',n:'飽和曲線法',d:'沿實質人均 GDP 爬升，趨近天花板 R_max'});
+  b.push({v:'manual',n:'估計目標值',d:'依時間線性走到指定的 2050 年出國率'});
+  return b;
+}
+
+/* ================= 初始參數 ================= */
+const STATE={};
+/* 天花板 R_max 預設值（次／人／年）。所得彈性法在 25 年期會產生無上限外推
+   （美國將達 1.07、泰國 0.55 次／人），故一律以飽和曲線為預設。*/
+const RMAX={'日本':15.8,'澳門':110,'韓國':80,'新加坡':220,'泰國':35,'印尼':7.5,
+ '中國大陸':24,'美國':42,'香港':1800,'加拿大':105,'菲律賓':13};
+function defaultBuilder(n){
+  if(n==='日本'||n==='澳門'||n==='越南'||n==='馬來西亞') return 'manual';
+  const m=MI[n]; return (m&&m.logiGrid)?'logi':'manual';
+}
+function manualDefault(m){        // 預設回到 2019 年與 2025 年中較高者
+  const o19=outRateOf(m,2019), o25=m.out25;
+  const v=Math.max(o19||0,o25||0); return v? +(v*100).toFixed(2):null;
+}
+function rmaxDefault(m){ return RMAX[m.name] ?? (m.out25? +(m.out25*150).toFixed(1) : null); }
+let GRPG={};
+function initState(){
+  M.forEach(m=>{
+    m.rate25=rateOf(m,2025)||(m.estOut?inbOf(m,m.estOut.year)/m.estOut.value*100:null);
+    m.rate19=rateOf(m,2019)||(m.estRate&&m.estRate[2019]!=null?m.estRate[2019]:null);
+    m.cagr1019=cagr(inbOf(m,2010),inbOf(m,2019),9);
+    m.popG=m.popF?cagr(m.popF[0],m.popF[10],10):null;      // 2025–2035 人口年增
+  });
+  const acc={};
+  M.forEach(m=>{ if(!avail(m).a[1]||recMode(m)!==1)return;
+    const sh={outMode:defaultBuilder(m.name),elastMult:1,rmax:rmaxDefault(m),
+      outTarget:manualDefault(m),outTargetYear:2035};
+    const o=outPath(m,sh); if(!o)return;
+    const g=cagr(o[0],o[10],10); if(g==null)return;
+    (acc[m.group]=acc[m.group]||[]).push(g);
+  });
+  for(const k in acc) GRPG[k]=acc[k].reduce((a,b)=>a+b,0)/acc[k].length;
+  ['G1','G2','G3','G4'].forEach(k=>{if(GRPG[k]==null)GRPG[k]=1.2;});
+  M.forEach(m=>{
+    const av=avail(m).a, rec=recMode(m), mode=av[rec]?rec:2;
+    STATE[m.name]={ mode,
+      shared:{outMode:defaultBuilder(m.name),elastMult:1,rmax:rmaxDefault(m),
+        outTarget:manualDefault(m),outTargetYear:2035},
+      base:{},A:{},B:{}};
+    applyBandTo(m);
+  });
+}
+/* ── 情境參數的依據 ─────────────────────────────────────────────
+   BAND（來臺率倍數 0.85／1.25）
+     依據：2010–2019 這九年間，各市場來臺率的實際變動幅度為
+     日本 +63%、韓國 +150%、泰國 +144%、新加坡 +31%、美國 −44%、印尼 −16%。
+     本工具的 ∓15%／+25% 是套用在 25 年期上，相對於上述九年期的歷史波動屬保守設定。
+     積極側另設下限：不低於該市場 2019 年的來臺率水準。
+     性質：以歷史波動為錨的判斷值，非統計估計值。
+
+   SEG（成長率區隔參數）
+     依據：IATA《Long-Term Air Transport Passenger Demand Projections》2026 年 1 月版，
+     2024–2050 年中成長情境的區域 RPK 年均成長率——亞太 3.8%、亞太區內航線 3.6–4.1%、
+     歐洲 2.5%、北美 2.8%。本工具預測的是「人次」而非 RPK，因平均航距會拉長，
+     人次成長約低於 RPK 成長 0.4 個百分點，故各值均已扣除 0.4pp。
+     兩段式反映 IATA 指出的長期趨緩（全球年均成長 1972–1998 年 6.1%、1998–2024 年 4.5%、
+     預測 2024–2050 年 3.1%）。
+
+   RECOVER（香港、馬來西亞前段折半）
+     依據：兩者 2025 年來臺人數仍分別衰退 1.2% 與 10.9%，來臺率較 2019 年掉 40% 與 23%，
+     是 16 個市場中僅有的持續衰退者。直接套用區隔成長率等於假設次年立即由負轉正。
+     折半係數 0.5 為判斷值，非由資料推導；意涵是「前十年為回復期，僅達區隔水準的一半，
+     後段才回到區隔值」。此假設應在報告中明確揭露。
+   ──────────────────────────────────────────────────────────── */
+const BAND={rateDn:0.85, rateUp:1.25};
+const SEG={
+  apac:{n:'亞太近程', mk:['香港','澳門','菲律賓','越南','馬來西亞'],
+        B:[1.6,0.6], base:[3.6,2.1], A:[5.1,3.1],
+        src:'IATA 亞太 3.8%（中成長）／亞太區內航線 3.6–4.1%'},
+  long:{n:'長距離', mk:['歐洲地區','大洋洲地區','加拿大','其他（自然成長法）'],
+        B:[1.1,0.1], base:[2.4,1.4], A:[3.6,2.4],
+        src:'IATA 歐洲 2.5%、北美 2.8%（中成長）'}
+};
+const RECOVER={'香港':'2025 年仍衰退 1.2%，來臺率較 2019 年掉 40%','馬來西亞':'2025 年仍衰退 10.9%，來臺率較 2019 年掉 23%',
+  '澳門':'2025 年仍衰退 6.6%，來臺人數較 2019 年掉 33.9%（來臺率本身較 2019 年持平略升，是出國與來臺人數同步衰退所致）'};
+const RECOVER_K=0.5;   // 回復期折半係數（判斷值，非資料推導）
+function segOf(m){ for(const k in SEG) if(SEG[k].mk.includes(m.name)) return SEG[k]; return SEG.long; }
+function segG(m,sc){
+  const s=segOf(m), v=s[sc];
+  return RECOVER[m.name] ? [ +(v[0]*RECOVER_K).toFixed(1), v[1] ] : [ v[0], v[1] ];
+}
+function applyBandTo(m){
+  const S=STATE[m.name], r=m.rate25;
+  const dp=v=>v>=1?1:v>=0.1?2:3;
+  const rt=(k)=>r?+Math.max(r*k,0.001).toFixed(dp(r)):null;
+  const uv=r?Math.max(r*BAND.rateUp, m.rate19||0):null;
+  const up=uv!=null?+uv.toFixed(dp(uv)):null;
+  const CN={B:100,base:200,A:400};
+  SCN.forEach(sc=>{ const g=segG(m,sc);
+    S[sc]={...S[sc], rate: sc==='base'?rt(1):sc==='B'?rt(BAND.rateDn):up,
+           rateYear:2050, g1:g[0], g2:g[1], n2050:CN[sc]}; });
+}
+function runAll(){
+  const R={base:{},A:{},B:{}};
+  SCN.forEach(sc=>{ M.forEach(m=>{ const s=STATE[m.name];
+    R[sc][m.name]=forecast(m,s.mode,s[sc],s.shared); }); });
+  return R;
+}
+
+function totalOf(R,sc){const a=new Array(NF+1).fill(0);
+  M.forEach(m=>{const s=R[sc][m.name]; for(let i=0;i<=NF;i++)a[i]+=(s[i]||0);}); return a;}
+const MODE_L={1:'來臺率法',2:'成長率法',3:'情境設定法'};
+const MODE_NAME={1:'來臺率設定法　人口 × 出國率 × 來臺率',2:'成長率設定法　2025 年來臺人數 × 成長率',
+  3:'情境設定法　直接指定 2050 年來臺人數'};
+
+/* ============ 來臺模組 ============ */
+initState();
+let R, T;
+const ICVAR = {B:'--consv', base:'--base', A:'--aggr'};
+const SCN_LABEL = {B:'保守', base:'基準', A:'積極'};
+const SCN_ORD2 = ['B','base','A'];
+const ALLYRS = [...YRS, ...FY.slice(1)];
+
+function recompute(){ R=runAll(); T={}; SCN.forEach(sc=>T[sc]=totalOf(R,sc)); }
+
+/* ---------- 1 描述統計：總覽 ---------- */
+function renderOverviewStats(){
+ const totals = YRS.map(y=>M.reduce((a,m)=>a+(inbOf(m,y)||0),0));
+ mk('ic_total',{type:'bar',data:{labels:YRS,datasets:[{data:totals.map(v=>v/1e4),
+  backgroundColor:cssv('--hist'),borderRadius:0,barPercentage:.85}]},
+  options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),YRS,5,'萬人次')});
+
+ const groups=['G1','G2','G3','G4'];
+ const gdata = groups.map(g=>YRS.map(y=>M.filter(m=>m.group===g).reduce((a,m)=>a+(inbOf(m,y)||0),0)/1e4));
+ mk('ic_group',{type:'bar',data:{labels:YRS,datasets:groups.map((g,i)=>({label:GN[g],data:gdata[i],backgroundColor:GC[g]}))},
+  options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),YRS,5,'萬人次'),
+   scales:{y:{stacked:true,beginAtZero:true,ticks:{...TICK,callback:v=>v.toLocaleString()},grid:GRID,border:{display:false},
+     title:{display:true,text:'萬人次',font:{size:13,weight:'600'},color:cssv('--ink3')}},
+    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>YRS[i]%5===0?YRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+ document.getElementById('ic_group').closest('.card').insertAdjacentHTML('beforeend',
+  `<div class="legend" style="margin-top:10px">${groups.map(g=>`<div class="lg"><i class="sq" style="--sw:${GC[g]}"></i>${GN[g]}</div>`).join('')}</div>`);
+
+ const pctData=groups.map(g=>YRS.map((y,i)=>{
+   const gv=M.filter(m=>m.group===g).reduce((a,m)=>a+(inbOf(m,y)||0),0);
+   return totals[i]?gv/totals[i]*100:0;
+ }));
+ mk('ic_group_pct',{type:'bar',data:{labels:YRS,datasets:groups.map((g,i)=>({label:GN[g],data:pctData[i],backgroundColor:GC[g]}))},
+  options:{...baseOpt(v=>v.toFixed(1)+'%',v=>v.toFixed(0),YRS,5,'%'),
+   scales:{y:{stacked:true,beginAtZero:true,max:100,ticks:{...TICK,callback:v=>v+'%'},grid:GRID,border:{display:false},
+     title:{display:true,text:'占比（%）',font:{size:13,weight:'600'},color:cssv('--ink3')}},
+    x:{stacked:true,ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>YRS[i]%5===0?YRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+ document.getElementById('ic_group_pct').closest('.card').insertAdjacentHTML('beforeend',
+  `<div class="legend" style="margin-top:10px">${groups.map(g=>`<div class="lg"><i class="sq" style="--sw:${GC[g]}"></i>${GN[g]}</div>`).join('')}</div>`);
+
+}
+
+const MKCOL={
+ '日本':'#1B4F72','韓國':'#2E6DA4','香港':'#154360','澳門':'#5499C7','新加坡':'#85C1E9',
+ '泰國':'#1E6B3C','印尼':'#2E8B57','菲律賓':'#52B788','越南':'#74C69D','馬來西亞':'#0B5D2E',
+ '中國大陸':'#A63A26','美國':'#8A6D1E','加拿大':'#C9A227'
+};
+function renderScatter(){
+ const EXCL=[2020,2021,2022,2023];
+ const datasets=[];
+ M.forEach(m=>{
+  if(!m.hasGdp || !MKCOL[m.name]) return;
+  const pts=YRS.filter(y=>!EXCL.includes(y)).map(y=>{
+   const r=outRateOf(m,y), g=m.gdp[yi(y)];
+   return (r!=null && g!=null) ? {x:g,y:r} : null;
+  }).filter(p=>p);
+  if(pts.length<3) return;
+  const n=pts.length;
+  datasets.push({label:SHORT(m.name),data:pts,showLine:true,fill:false,
+   borderColor:MKCOL[m.name],backgroundColor:MKCOL[m.name],borderWidth:1.6,tension:0,
+   pointRadius:pts.map((p,i)=>i===n-1?7:2),
+   pointStyle:pts.map((p,i)=>i===n-1?'triangle':'circle'),
+   pointHoverRadius:pts.map((p,i)=>i===n-1?9:5)});
+ });
+ const twAll=YRS.filter(y=>!EXCL.includes(y)).map(y=>({x:TW.gdp[yi(y)],y:TW.rate[yi(y)]})).filter(p=>p.x!=null&&p.y!=null);
+ datasets.push({label:'臺灣',data:twAll,showLine:true,fill:false,
+  borderColor:cssv('--hist'),backgroundColor:cssv('--hist'),borderWidth:2.2,borderDash:[5,3],tension:0,
+  pointRadius:twAll.map((p,i)=>i===twAll.length-1?8:2),
+  pointStyle:twAll.map((p,i)=>i===twAll.length-1?'rectRot':'circle'),
+  pointHoverRadius:twAll.map((p,i)=>i===twAll.length-1?10:5)});
+
+ mk('ic_scatter',{type:'line',data:{datasets},options:{
+  responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:true,position:'bottom',labels:{color:cssv('--ink2'),font:{size:12.5},boxWidth:10,padding:10}},
+   tooltip:{callbacks:{
+    title:c=>c[0].dataset.label,
+    label:c=>`人均GDP ${Math.round(c.parsed.x).toLocaleString()}，出國率 ${c.parsed.y<1?c.parsed.y.toFixed(3):c.parsed.y.toFixed(2)} 次／人／年`},
+    backgroundColor:cssv('--ink'),titleColor:cssv('--surf'),bodyColor:cssv('--surf'),padding:10,bodyFont:{size:14},titleFont:{size:14,weight:'600'}}},
+  scales:{
+   x:{type:'logarithmic',title:{display:true,text:'人均GDP（購買力平價，國際元）',font:{size:13,weight:'600'},color:cssv('--ink3')},
+    ticks:{color:cssv('--ink3'),font:{size:13},autoSkip:false,callback:v=>[2000,5000,10000,20000,50000,100000,200000].some(t=>Math.abs(v-t)<1e-6)?(v/1000)+'k':''},
+    grid:GRID,border:{color:cssv('--rule')}},
+   y:{type:'logarithmic',title:{display:true,text:'出國率（次／人／年）',font:{size:13,weight:'600'},color:cssv('--ink3')},
+    ticks:{color:cssv('--ink3'),font:{size:13},autoSkip:false,callback:v=>[0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20].some(t=>Math.abs(v-t)<t*1e-6)?String(v):''},
+    grid:GRID,border:{display:false}}
+  },animation:false}});
+}
+
+/* ---------- 2 模型說明與設定：總覽（唯讀清單）---------- */
+function renderMkList(){
+ document.getElementById('mkList').innerHTML = M.map(m=>{
+  const st=STATE[m.name], b=st.base, ns='row'+m.i, cid='mkacc-'+m.i;
+  let val;
+  if(st.mode===1) val=`來臺率目標 ${b.rate}%`;
+  else if(st.mode===2) val=`成長率 ${b.g1}%→${b.g2}%`;
+  else val=`2050目標 ${b.n2050}萬人`;
+  return `<details class="mkacc">
+   <summary class="mkrow">
+    <div class="mkname"><span class="gbadge" style="background:${GC[m.group]}">${m.group}</span>${SHORT(m.name)}</div>
+    <div class="mkmeta">${MODE_L[st.mode]}　${val}</div>
+   </summary>
+   <div class="setgrid" id="${cid}" style="margin-top:14px">${mkSetHTML(m,ns)}</div>
+   <div class="mkres" id="mkres-${m.i}"></div>
+  </details>`;
+ }).join('');
+ M.forEach(m=>{
+  const ns='row'+m.i, cid='mkacc-'+m.i;
+  wireMkSet(m,ns,cid,()=>{
+   document.getElementById(cid).closest('details').querySelector('.mkmeta').textContent=
+    (()=>{const st=STATE[m.name],b=st.base;
+     if(st.mode===1)return `${MODE_L[st.mode]}　來臺率目標 ${b.rate}%`;
+     if(st.mode===2)return `${MODE_L[st.mode]}　成長率 ${b.g1}%→${b.g2}%`;
+     return `${MODE_L[st.mode]}　2050目標 ${b.n2050}萬人`;})();
+  });
+ });
+}
+
+/* ---------- 3 預測結果：總覽 ---------- */
+function renderMkRes(){
+ M.forEach(m=>{
+  const el=document.getElementById('mkres-'+m.i); if(!el) return;
+  const v25=inbOf(m,2025);
+  el.innerHTML=`2050年預測：`+SCN_ORD2.map(sc=>`<span style="color:${cssv(ICVAR[sc])};font-weight:600">${SCN_LABEL[sc]}</span> <b>${(R[sc][m.name][NF]/1e4).toLocaleString(undefined,{maximumFractionDigits:1})}萬人</b>`).join('　')
+   +`　（2025年實際 ${v25==null?'—':(v25/1e4).toLocaleString(undefined,{maximumFractionDigits:1})+'萬人'}）`;
+ });
+}
+
+function renderOverviewResults(){
+ renderMkRes();
+ document.getElementById('iKpiGrid').innerHTML = SCN_ORD2.map(sc=>{
+  const v=T[sc][NF];
+  return `<div class="kpi" style="--c:var(${ICVAR[sc]})">
+   <div class="kn">${SCN_LABEL[sc]}情境　2050年</div>
+   <div class="kv">${Math.round(v/1e4).toLocaleString()}<span class="ku">萬人</span></div>
+   <div class="ks">自2025年起年均成長 ${cagr(T.base[0],v,NF).toFixed(2)}%</div></div>`;
+ }).join('');
+
+ const histTotals={}; YRS.forEach(y=>histTotals[y]=M.reduce((a,m)=>a+(inbOf(m,y)||0),0));
+ const ds=[{label:'實際',data:ALLYRS.map(y=>y<=2025?histTotals[y]/1e4:null),borderColor:cssv('--hist'),borderWidth:2.6,pointRadius:0,tension:.2,order:9}];
+ SCN_ORD2.forEach(sc=>ds.push({label:SCN_LABEL[sc],data:ALLYRS.map(y=>y>=2025?T[sc][y-2025]/1e4:null),
+  borderColor:cssv(ICVAR[sc]),borderWidth:3,pointRadius:0,tension:.2,order:1}));
+ mk('ic_main',{type:'line',data:{labels:ALLYRS,datasets:ds},options:{...baseOpt(v=>Math.round(v).toLocaleString()+' 萬',v=>v+'萬',ALLYRS,5),
+  scales:{y:{beginAtZero:true,ticks:{...TICK,callback:v=>v+'萬'},grid:GRID,border:{display:false}},
+  x:{ticks:{...TICK,maxRotation:0,autoSkip:false,callback:(v,i)=>ALLYRS[i]%5===0?ALLYRS[i]:''},grid:{display:false},border:{color:cssv('--rule')}}}}});
+ document.getElementById('ilg-main').innerHTML=`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>實際值</div>`
+  +SCN_ORD2.map(sc=>`<div class="lg"><i style="border-color:${cssv(ICVAR[sc])}"></i>${SCN_LABEL[sc]}</div>`).join('');
+
+ let t='<thead><tr><th>年份</th>'+SCN_ORD2.map(sc=>`<th>${SCN_LABEL[sc]}（萬人）</th>`).join('')+'</tr></thead><tbody>';
+ t+=`<tr><td>2025 實際</td>`+SCN_ORD2.map(()=>`<td>${Math.round(T.base[0]/1e4)}</td>`).join('')+'</tr>';
+ FY.forEach((y,i)=>{ if(i===0)return; if(y%5!==0&&y!==Y1)return;
+  t+=`<tr><td>${y}</td>`+SCN_ORD2.map(sc=>`<td>${Math.round(T[sc][i]/1e4)}</td>`).join('')+'</tr>'});
+ document.getElementById('it_year').innerHTML=t+'</tbody>';
+}
+
+/* ---------- 單一市場 ---------- */
+function renderMarketSelect(id,onSel,withEmpty){
+ const groups={G1:[],G2:[],G3:[],G4:[]}; M.forEach(m=>groups[m.group].push(m));
+ const empty=withEmpty?'<option value="">請選擇市場</option>':'';
+ document.getElementById(id).innerHTML = empty+['G1','G2','G3','G4'].map(g=>
+  `<optgroup label="${GN[g]}">${groups[g].map(m=>`<option value="${m.name}">${SHORT(m.name)}</option>`).join('')}</optgroup>`).join('');
+ document.getElementById(id).onchange=e=>onSel(e.target.value);
+}
+
+function selectMarketStats(name){
+ if(!name){ document.getElementById('mk-empty').style.display=''; document.getElementById('mk-content').hidden=true; return; }
+ document.getElementById('mk-empty').style.display='none';
+ document.getElementById('mk-content').hidden=false;
+ renderMarketStats(MI[name]);
+}
+
+function renderMarketStats(m){
+ document.getElementById('mk-note').innerHTML = `<span class="gbadge" style="background:${GC[m.group]}">${m.group}</span>　${GN[m.group]}　│　資料信心：${esc(m.conf1note||'—')}`;
+ mk('mc_inb',{type:'bar',data:{labels:YRS,datasets:[{data:YRS.map(y=>{const v=inbOf(m,y);return v==null?null:v/1e4}),
+  backgroundColor:cssv('--hist'),borderRadius:0,barPercentage:.85}]},options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),YRS,5,'萬人次')});
+
+ const gdpCard=document.getElementById('mc_gdp').closest('.card');
+ if(m.hasGdp){ gdpCard.style.display='';
+  mk('mc_gdp',{type:'line',data:{labels:YRS,datasets:[{data:m.gdp,borderColor:cssv('--hist'),borderWidth:2.4,pointRadius:0,tension:.2}]},
+   options:baseOpt(v=>Math.round(v).toLocaleString()+' 元',v=>(v/1000).toFixed(0)+'k',YRS,5,'美元（PPP）')});
+ } else gdpCard.style.display='none';
+
+ mk('mc_pop',{type:'line',data:{labels:YRS,datasets:[{data:YRS.map(y=>popOf(m,y)),borderColor:cssv('--hist'),borderWidth:2.4,pointRadius:0,tension:.2}]},
+  options:baseOpt(v=>Math.round(v).toLocaleString()+' 人',v=>(v/1e6).toFixed(1)+'M',YRS,5,'人（百萬）')});
+}
+
+function mkSetHTML(m,ns){
+ const st=STATE[m.name], {a}=avail(m);
+ const modeOpts=[1,2,3].filter(k=>a[k]).map(k=>`<option value="${k}"${k===st.mode?' selected':''}>${MODE_L[k]}</option>`).join('');
+ let html=`<div class="setcol" style="grid-column:1/-1;max-width:280px">
+   <h4 style="border-color:var(--ink3)">計算模式</h4>
+   <div class="fld"><select id="mk-mode-${ns}">${modeOpts}</select></div>
+  </div>`;
+ if(st.mode===1){
+  html+=`<div class="setcol" style="grid-column:1/-1">
+    <h4 style="border-color:var(--ink3)">出國率路徑（該市場自己前往各地的出國率）</h4>
+    <div class="fld" style="max-width:320px"><label>建構方式</label><select id="mk-outmode-${ns}">
+     ${builders(m).map(b=>`<option value="${b.v}"${b.v===st.shared.outMode?' selected':''}>${b.n}</option>`).join('')}
+    </select></div>
+    ${st.shared.outMode==='logi'
+     ?`<div class="fld" style="max-width:320px"><label>出國率上限 R_max（次／千人／年）</label><input type="number" id="mk-rmax-${ns}" value="${st.shared.rmax??''}" step="1"></div>`
+     :`<div style="display:flex;gap:16px;flex-wrap:wrap">
+       <div class="fld" style="flex:1;min-width:140px"><label>目標出國率（%）</label><input type="number" id="mk-outtarget-${ns}" value="${st.shared.outTarget??''}" step="0.5"></div>
+       <div class="fld" style="flex:1;min-width:100px"><label>目標年</label><input type="number" id="mk-outtargetyear-${ns}" value="${st.shared.outTargetYear}" step="1"></div>
+      </div>`}
+   </div>`;
+  html+=SCN_ORD2.map(sc=>`<div class="setcol" style="--c:var(${ICVAR[sc]})"><h4>${SCN_LABEL[sc]}</h4>
+    <div class="fld"><label>來臺率目標（%，占該市場出國人次）</label><input type="number" class="mk-rate-${ns}" data-sc="${sc}" value="${st[sc].rate??''}" step="0.1"></div></div>`).join('');
+ } else if(st.mode===2){
+  html+=SCN_ORD2.map(sc=>`<div class="setcol" style="--c:var(${ICVAR[sc]})"><h4>${SCN_LABEL[sc]}</h4>
+    <div class="fld"><label>2026–2035 成長率（%）</label><input type="number" class="mk-g1-${ns}" data-sc="${sc}" value="${st[sc].g1??''}" step="0.1"></div>
+    <div class="fld"><label>2036–2050 成長率（%）</label><input type="number" class="mk-g2-${ns}" data-sc="${sc}" value="${st[sc].g2??''}" step="0.1"></div></div>`).join('');
+ } else {
+  html+=SCN_ORD2.map(sc=>`<div class="setcol" style="--c:var(${ICVAR[sc]})"><h4>${SCN_LABEL[sc]}</h4>
+    <div class="fld"><label>2050年目標人數（萬人）</label><input type="number" class="mk-n2050-${ns}" data-sc="${sc}" value="${st[sc].n2050??''}" step="10"></div></div>`).join('');
+ }
+ return html;
+}
+
+function wireMkSet(m,ns,containerId,after){
+ const st=STATE[m.name];
+ const rerender=()=>{ document.getElementById(containerId).innerHTML=mkSetHTML(m,ns); wireMkSet(m,ns,containerId,after); if(after)after(); };
+ document.getElementById(`mk-mode-${ns}`).onchange=e=>{st.mode=+e.target.value;recompute();rerender();renderOverviewResults();};
+ const om=document.getElementById(`mk-outmode-${ns}`); if(om) om.onchange=e=>{st.shared.outMode=e.target.value;recompute();rerender();renderOverviewResults();};
+ const rm=document.getElementById(`mk-rmax-${ns}`); if(rm) rm.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st.shared.rmax=v;recompute();if(after)after();renderOverviewResults();}};
+ const ot=document.getElementById(`mk-outtarget-${ns}`); if(ot) ot.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st.shared.outTarget=v;recompute();if(after)after();renderOverviewResults();}};
+ const oty=document.getElementById(`mk-outtargetyear-${ns}`); if(oty) oty.oninput=e=>{const v=parseInt(e.target.value);if(!isNaN(v)){st.shared.outTargetYear=v;recompute();if(after)after();renderOverviewResults();}};
+ document.querySelectorAll(`.mk-rate-${ns}`).forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st[e.target.dataset.sc].rate=v;recompute();if(after)after();renderOverviewResults();}});
+ document.querySelectorAll(`.mk-g1-${ns}`).forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st[e.target.dataset.sc].g1=v;recompute();if(after)after();renderOverviewResults();}});
+ document.querySelectorAll(`.mk-g2-${ns}`).forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st[e.target.dataset.sc].g2=v;recompute();if(after)after();renderOverviewResults();}});
+ document.querySelectorAll(`.mk-n2050-${ns}`).forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){st[e.target.dataset.sc].n2050=v;recompute();if(after)after();renderOverviewResults();}});
+}
+
+recompute();
+renderOverviewStats();
+renderScatter();
+renderMkList();
+renderOverviewResults();
+renderMarketSelect('marketSel',selectMarketStats,true);
+selectMarketStats('');
+
+/* ---------- 修正：<details> 收合時裡面的圖表量到0大小，展開時要重新measure ---------- */
+document.querySelectorAll('details').forEach(d=>{
+ d.addEventListener('toggle',()=>{
+  if(!d.open) return;
+  d.querySelectorAll('canvas').forEach(c=>{ if(charts[c.id]) charts[c.id].resize(); });
+ });
+});
+
+/* ============ 轉機 + 總計 ============ */
+const CAA_HIST={ // 民國年 -> [國際線(不含兩岸), 兩岸, 過境]，全台灣機場合計，交通部民航局統計
+ 85:[16156798,0,2044466],86:[17068682,0,1834887],87:[16440446,0,1915891],
+ 88:[17808411,0,2031074],89:[19780427,0,1976415],90:[19500719,0,1969663],
+ 91:[20062751,0,2232602],92:[15913175,0,1914011],93:[20756064,0,2365219],
+ 94:[22485357,0,2488704],95:[23773971,0,2586364],96:[24431735,0,2630058],
+ 97:[22784144,418689,2183390],98:[23429733,3116101,279488],99:[25261213,5845306,251423],
+ 100:[24959187,7173692,239005],101:[26936846,8961516,281935],102:[30165469,9220485,402922],
+ 103:[33095781,11295096,402379],104:[36162292,11821354,374043],105:[40723465,11255632,430635],
+ 106:[44033781,10441464,406047],107:[46181836,10740213,390225],108:[48825306,10752223,338647],
+ 109:[7827398,1003929,53631],110:[748853,274753,29],111:[5432637,328545,17948],
+ 112:[37510729,3412315,117895],113:[48179752,5198298,180567],114:[52310838,5802053,216621]
+};
+/* 民國98年（2009）起，民航局依ACI定義修正：轉機旅客自「過境」改列入境、出境 */
+const CAA_BREAK_ROC=98;
+const CAA_ROC=Object.keys(CAA_HIST).map(Number).sort((a,b)=>a-b);
+const CAA_G=CAA_ROC.map(y=>y+1911);
+const caaTot=gy=>{const r=CAA_HIST[gy-1911];return r[0]+r[1]+r[2];};   // 國際航線總量（西元年）
+
+/* 組成用色（與圖例一致） */
+const CC={inb:'#2E7D4F',ob:'#1F5F91',xf:'#A38220'};
+
+/* ---- 歷史：來臺／出國人次與推估轉機人次（2000–2025）---- */
+const XF_YRS=YRS.filter(y=>CAA_HIST[y-1911]);
+const XF_H={};
+XF_YRS.forEach((y,i)=>{
+ const inbN=D.markets.reduce((s,m)=>s+(m.inb[YRS.indexOf(y)]||0),0);
+ const inb2=inbN*2, ob2=H[y].ob*2, od=inb2+ob2, tot=caaTot(y);
+ XF_H[y]={inb2,ob2,od,tot,xf:tot-od,ratio:(tot-od)/od*100};
+});
+const XF25=XF_H[2025].ratio;
+const avgRatio=(a,b)=>{const v=XF_YRS.filter(y=>y>=a&&y<=b&&!COVID.includes(y)).map(y=>XF_H[y].ratio);return v.reduce((s,x)=>s+x,0)/v.length;};
+const AVG_PRE=avgRatio(2012,2019);
+
+/* ---- 情境 ---- */
+const X_SCN={
+ B:{target:12.0,year:2026,why:'疫情後偏高的比例小幅回落，2026年起維持12%'},
+ base:{target:12.5,year:2050,why:'大致維持目前的高水準'},
+ A:{target:13.0,year:2050,why:'轉機占比些微提高'}
+};
+const TIER2OB={B:'A',base:'B',A:'C'};
+function xfPath(sc){ return rampTo(XF25,X_SCN[sc].target,X_SCN[sc].year); }
+function outboundSeriesFor(obId){
+ const s=S.find(x=>x.id===obId);
+ const est=estimate(s.win,EX);
+ const rows=project(est.e,s.gT,GMODE,s.pop,END,s.rmax);
+ const arr=[BASE.ob]; rows.forEach(r=>arr.push(r.ob));
+ return arr;
+}
+/* 各情境：出國人次、來臺人次、轉機人次、總計（皆為人次）*/
+function computeCombined(){
+ const comb={};
+ SCN_ORD2.forEach(tier=>{
+  const ob=outboundSeriesFor(TIER2OB[tier]).map(v=>v*2);
+  const inb=T[tier].map(v=>v*2);
+  const od=ob.map((v,i)=>v+inb[i]);
+  const path=xfPath(tier);
+  const xf=od.map((v,i)=>v*path[i]/100);
+  const total=od.map((v,i)=>v+xf[i]);
+  comb[tier]={ob,inb,od,path,xf,total};
+ });
+ return comb;
+}
+
+/* ---- 共用：堆疊長條圖選項 ---- */
+function stackOpt(yrs,step){
+ const o=baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),yrs,step,'萬人次');
+ o.scales.x.stacked=true; o.scales.y.stacked=true;
+ o.plugins.tooltip.callbacks.footer=items=>'合計：'+Math.round(items.reduce((s,it)=>s+(it.parsed.y||0),0)).toLocaleString()+' 萬人次';
+ return o;
+}
+const sqLegend=items=>items.map(([c,t])=>`<div class="lg"><i class="sq" style="--sw:${c}"></i>${t}</div>`).join('');
+
+/* ---- 轉機：描述統計 ---- */
+function renderTransitStats(){
+ const cOff={intl:cssv('--hist'),xs:cssv('--consv'),tr:cssv('--aggr')};
+ mk('tc_off',{type:'bar',data:{labels:CAA_G,datasets:[
+  {label:'國際線（不含兩岸）',data:CAA_ROC.map(y=>CAA_HIST[y][0]/1e4),backgroundColor:cOff.intl,borderRadius:0,barPercentage:.8},
+  {label:'兩岸線',data:CAA_ROC.map(y=>CAA_HIST[y][1]/1e4),backgroundColor:cOff.xs,borderRadius:0,barPercentage:.8},
+  {label:'過境',data:CAA_ROC.map(y=>CAA_HIST[y][2]/1e4),backgroundColor:cOff.tr,borderRadius:0,barPercentage:.8}
+ ]},options:stackOpt(CAA_G,5)});
+ document.getElementById('tlg-off').innerHTML=sqLegend([[cOff.intl,'國際線（不含兩岸）'],[cOff.xs,'兩岸線'],[cOff.tr,'過境']]);
+
+ mk('tc_hist',{type:'bar',data:{labels:CAA_G,datasets:[{data:CAA_ROC.map(y=>CAA_HIST[y][2]/1e4),
+  backgroundColor:CAA_ROC.map(y=>y<CAA_BREAK_ROC?cssv('--rule'):cssv('--hist')),borderRadius:0,barPercentage:.7}]},
+  options:baseOpt(v=>Math.round(v*1e4).toLocaleString()+' 人次',v=>v.toLocaleString(),CAA_G,5,'萬人次')});
+
+ mk('tc_xf',{type:'bar',data:{labels:XF_YRS,datasets:[{data:XF_YRS.map(y=>XF_H[y].xf/1e4),
+  backgroundColor:XF_YRS.map(y=>COVID.includes(y)?cssv('--rule'):cssv('--hist')),borderRadius:0,barPercentage:.75}]},
+  options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),XF_YRS,5,'萬人次')});
+
+ mk('tc_ratio',{type:'line',data:{labels:XF_YRS,datasets:[
+  {label:'轉機比例',data:XF_YRS.map(y=>XF_H[y].ratio),borderColor:cssv('--hist'),borderWidth:2.4,tension:.2,
+   pointRadius:3,pointBackgroundColor:XF_YRS.map(y=>COVID.includes(y)?cssv('--rule'):cssv('--hist')),pointBorderColor:XF_YRS.map(y=>COVID.includes(y)?cssv('--rule'):cssv('--hist'))},
+  {label:'2012–2019平均',data:XF_YRS.map(()=>AVG_PRE),borderColor:cssv('--ink3'),borderWidth:1.5,borderDash:[5,4],pointRadius:0}
+ ]},options:baseOpt(v=>v.toFixed(1)+'%',v=>v.toFixed(0),XF_YRS,5,'%')});
+
+ const rows=[['2000–2008（統計修正前）',avgRatio(2000,2008)],['2012–2019（修正後、疫情前）',AVG_PRE],
+  ['2023',XF_H[2023].ratio],['2024',XF_H[2024].ratio],['2025',XF_H[2025].ratio]];
+ document.getElementById('tt_ratio').innerHTML='<thead><tr><th>期間</th><th>轉機比例（平均）</th></tr></thead><tbody>'
+  +rows.map(([a,b])=>`<tr><td>${a}</td><td>${b.toFixed(1)}%</td></tr>`).join('')+'</tbody>';
+}
+
+/* ---- 轉機：情境卡＋參數 ---- */
+function renderTransitScenCards(){
+ document.getElementById('tScenNote').innerHTML=`三個情境都從2025年實際比例 <b>${XF25.toFixed(1)}%</b> 出發，差別在目標比例與到達年。疫情前（2012–2019）平均為 ${AVG_PRE.toFixed(1)}%。`;
+ document.getElementById('tScenCards').innerHTML=SCN_ORD2.map(sc=>`
+  <div class="scen" style="--c:var(${ICVAR[sc]})">
+   <h3>${SCN_LABEL[sc]}情境</h3>
+   <p>${X_SCN[sc].why}。</p>
+   <ul class="scenlist">
+    <li><b>目標轉機比例</b><span>${X_SCN[sc].target}%</span></li>
+    <li><b>到達年</b><span>${X_SCN[sc].year}年，之後維持</span></li>
+   </ul>
+  </div>`).join('');
+}
+function renderTransitSet(){
+ document.getElementById('tScenSet').innerHTML=SCN_ORD2.map(sc=>`
+  <div class="setcol" style="--c:var(${ICVAR[sc]})"><h4>${SCN_LABEL[sc]}</h4>
+   <div class="fld"><label for="xt-${sc}">目標轉機比例（%）</label><input type="number" id="xt-${sc}" class="tp-target" data-sc="${sc}" value="${X_SCN[sc].target}" step="0.1" min="0" max="40"></div>
+   <div class="fld"><label for="xy-${sc}">到達年</label><input type="number" id="xy-${sc}" class="tp-year" data-sc="${sc}" value="${X_SCN[sc].year}" step="1" min="2026" max="2050"></div>
+  </div>`).join('');
+ const after=()=>{renderTransitScenCards();renderTransitResults();renderTotalResults();};
+ document.querySelectorAll('.tp-target').forEach(el=>el.oninput=e=>{const v=parseFloat(e.target.value);if(!isNaN(v)){X_SCN[e.target.dataset.sc].target=v;after();}});
+ document.querySelectorAll('.tp-year').forEach(el=>el.oninput=e=>{const v=parseInt(e.target.value);if(!isNaN(v)&&v>=2026&&v<=2050){X_SCN[e.target.dataset.sc].year=v;after();}});
+}
+
+/* ---- 共用：歷史＋預測折線（2000–2050）---- */
+const LONG_YRS=[...XF_YRS,...FY.slice(1)];
+function longLine(id,histFn,comb,key){
+ const ds=[{label:'歷史',data:LONG_YRS.map(y=>y<=2025?histFn(y)/1e4:null),borderColor:cssv('--hist'),borderWidth:2.6,pointRadius:0,tension:.2,order:9}];
+ SCN_ORD2.forEach(sc=>ds.push({label:SCN_LABEL[sc],data:LONG_YRS.map(y=>y>=2025?comb[sc][key][y-2025]/1e4:null),
+  borderColor:cssv(ICVAR[sc]),borderWidth:3,pointRadius:0,tension:.2,order:1}));
+ mk(id,{type:'line',data:{labels:LONG_YRS,datasets:ds},options:baseOpt(v=>Math.round(v).toLocaleString()+' 萬人次',v=>v.toLocaleString(),LONG_YRS,window.innerWidth<560?10:5,'萬人次')});
+}
+const lineLegend=first=>`<div class="lg"><i style="border-color:${cssv('--hist')}"></i>${first}</div>`
+  +SCN_ORD2.map(sc=>`<div class="lg"><i style="border-color:${cssv(ICVAR[sc])}"></i>${SCN_LABEL[sc]}</div>`).join('');
+
+/* ---- 轉機：預測結果 ---- */
+function renderTransitResults(){
+ const comb=computeCombined();
+ document.getElementById('tKpiGrid').innerHTML=SCN_ORD2.map(sc=>`
+  <div class="kpi" style="--c:var(${ICVAR[sc]})">
+   <div class="kn">${SCN_LABEL[sc]}情境　2050年</div>
+   <div class="kv">${Math.round(comb[sc].xf[NF]/1e4).toLocaleString()}<span class="ku">萬人次</span></div>
+   <div class="ks">轉機比例 ${comb[sc].path[NF].toFixed(1)}%<br>2035年 ${Math.round(comb[sc].xf[10]/1e4).toLocaleString()}萬人次；2025年 ${Math.round(XF_H[2025].xf/1e4).toLocaleString()}萬人次</div></div>`).join('');
+ longLine('tc_main',y=>XF_H[y].xf,comb,'xf');
+ document.getElementById('tlg-main').innerHTML=lineLegend('歷史（推估值）');
+}
+
+/* ---- 總計：描述統計 ---- */
+function renderTotalStats(){
+ const tot25=caaTot(2025)/1e4, m25=computeCombined().base.total[0]/1e4;
+ document.getElementById('zCheckNote').innerHTML=`基期檢核：2025年民航局國際航線總量（國際線＋兩岸線＋過境）為 ${tot25.toLocaleString(undefined,{maximumFractionDigits:1})}萬人次，模型2025年值為 ${m25.toLocaleString(undefined,{maximumFractionDigits:1})}萬人次。轉機比例由實際值反推，因此基期一致，預測從實際值出發。`;
+}
+
+/* ---- 總計：預測結果 ---- */
+function renderTotalResults(){
+ const comb=computeCombined();
+ document.getElementById('zKpiGrid').innerHTML=SCN_ORD2.map(sc=>{
+  const c=comb[sc],v=c.total[NF];
+  return `<div class="kpi" style="--c:var(${ICVAR[sc]})">
+   <div class="kn">${SCN_LABEL[sc]}情境　2050年</div>
+   <div class="kv">${Math.round(v/1e4).toLocaleString()}<span class="ku">萬人次</span></div>
+   <div class="ks">2035年 ${Math.round(c.total[10]/1e4).toLocaleString()}萬人次；自2025年起年均成長 ${cagr(c.total[0],v,NF).toFixed(2)}%<br>來臺 ${(c.inb[NF]/v*100).toFixed(0)}%／出國 ${(c.ob[NF]/v*100).toFixed(0)}%／轉機 ${(c.xf[NF]/v*100).toFixed(0)}%</div></div>`;
+ }).join('');
+
+ longLine('zc_main',y=>XF_H[y].tot,comb,'total');
+ document.getElementById('zlg-main').innerHTML=lineLegend('民航局實際值');
+
+ const sel=document.getElementById('zScenSel');
+ const sc=sel.value, c=comb[sc];
+ const ys=FY.filter(y=>y%5===0), ix=ys.map(y=>y-2025);
+ mk('zc_comp',{type:'bar',data:{labels:ys,datasets:[
+  {label:'來臺人次',data:ix.map(i=>c.inb[i]/1e4),backgroundColor:CC.inb,borderRadius:0,barPercentage:.6},
+  {label:'出國人次',data:ix.map(i=>c.ob[i]/1e4),backgroundColor:CC.ob,borderRadius:0,barPercentage:.6},
+  {label:'轉機人次',data:ix.map(i=>c.xf[i]/1e4),backgroundColor:CC.xf,borderRadius:0,barPercentage:.6}
+ ]},options:stackOpt(ys,5)});
+ document.getElementById('zlg-comp').innerHTML=sqLegend([[CC.inb,'來臺人次'],[CC.ob,'出國人次'],[CC.xf,'轉機人次']]);
+ sel.onchange=renderTotalResults;
+
+ let t='<thead><tr><th>年份</th>'+SCN_ORD2.map(s=>`<th colspan="4" style="text-align:center">${SCN_LABEL[s]}（萬人次）</th>`).join('')+'</tr>'
+  +'<tr><th></th>'+SCN_ORD2.map(()=>'<th>來臺</th><th>出國</th><th>轉機</th><th>總計</th>').join('')+'</tr></thead><tbody>';
+ FY.forEach((y,i)=>{ if(i!==0&&y%5!==0&&y!==Y1)return;
+  t+=`<tr><td>${y===2025?'2025 實際':y}</td>`+SCN_ORD2.map(s=>{const k=comb[s];
+   return `<td>${(k.inb[i]/1e4).toFixed(0)}</td><td>${(k.ob[i]/1e4).toFixed(0)}</td><td>${(k.xf[i]/1e4).toFixed(0)}</td><td><b>${(k.total[i]/1e4).toFixed(0)}</b></td>`;}).join('')+'</tr>'});
+ document.getElementById('zt_year').innerHTML=t+'</tbody>';
+}
+
+/* ---- 跨模組連動：出國／來臺任一參數變動時，一併刷新轉機過境與總計 ---- */
+const _origUpdate=update;
+update=function(){ _origUpdate(); renderTransitResults(); renderTotalResults(); };
+const _origROR=renderOverviewResults;
+renderOverviewResults=function(){ _origROR(); renderTransitResults(); renderTotalResults(); };
+
+renderTransitStats();
+renderTransitScenCards();
+renderTransitSet();
+renderTransitResults();
+renderTotalStats();
+renderTotalResults();
+</script>
+</body>
+</html>
